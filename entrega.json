@@ -1,0 +1,28 @@
+{
+ "seccion": "FB50-C1",
+ "modulo": 3,
+ "grupo": "G03",
+ "prototipo": "LINK A MODIFICAR",
+ "repositorio": "https://github.com/KuroMint0/ES3-M3-Ingenieria-Software",
+ "taiga": "https://tree.taiga.io/project/kuromint-ti3043-fb50c1-m3",
+ "integrantes": [
+ { "nombre": "Alexis Sepúlveda", "github": "KuroMint0", "taiga": "KuroMint", "rol": "Scrum Master" },
+ { "nombre": "Christopher Cortés", "github": "crimaxi", "taiga": "Crimaxi", "rol": "Analista" },
+ { "nombre": "Eric Torrejón", "github": "nnnnagato", "taiga": "EricTorrejon", "rol": "Arquitecto" },
+ { "nombre": "Sebastián Ortega", "github": "SebastianOrtegaV", "taiga": "zbA", "rol": "PO" }
+ ],
+ "historias": [
+ {
+ "id": "HU-01",
+ "titulo": "Postular a la adopción de un animal",
+ "responsable": "usuario-gh",
+ "verificacion": {
+ "metodo": "POST",
+ "ruta": "/api/adopciones/postulaciones",
+ "perfil": "vecino",
+ "cuerpo": { "animalId": "SIM-000001" },
+ "esperado": 201
+ }
+ }
+ ]
+}
