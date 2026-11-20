@@ -1,0 +1,15 @@
+# Infraestructura como código para Render (opcional pero recomendado).
+# Deja documentado cómo se despliega el prototipo.
+services:
+  - type: web
+    name: adopciones-tr
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn config.wsgi:application
+    envVars:
+      - key: DJANGO_DEBUG
+        value: "False"
+      - key: NUCLEO_URL
+        value: https://nucleo-tr.onrender.com
+      # DJANGO_SECRET_KEY, DJANGO_ALLOWED_HOSTS, MONGO_URI y MONGO_DB
+      # se cargan como "secretos" en el panel de Render, no aquí.

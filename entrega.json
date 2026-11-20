@@ -1,28 +1,64 @@
 {
- "seccion": "FB50-C1",
- "modulo": 3,
- "grupo": "G03",
- "prototipo": "LINK A MODIFICAR",
- "repositorio": "https://github.com/KuroMint0/ES3-M3-Ingenieria-Software",
- "taiga": "https://tree.taiga.io/project/kuromint-ti3043-fb50c1-m3",
- "integrantes": [
- { "nombre": "Alexis Sepúlveda", "github": "KuroMint0", "taiga": "KuroMint", "rol": "Scrum Master" },
- { "nombre": "Christopher Cortés", "github": "crimaxi", "taiga": "Crimaxi", "rol": "Analista" },
- { "nombre": "Eric Torrejón", "github": "nnnnagato", "taiga": "EricTorrejon", "rol": "Arquitecto" },
- { "nombre": "Sebastián Ortega", "github": "SebastianOrtegaV", "taiga": "zbA", "rol": "PO" }
- ],
- "historias": [
- {
- "id": "HU-01",
- "titulo": "Postular a la adopción de un animal",
- "responsable": "usuario-gh",
- "verificacion": {
- "metodo": "POST",
- "ruta": "/api/adopciones/postulaciones",
- "perfil": "vecino",
- "cuerpo": { "animalId": "SIM-000001" },
- "esperado": 201
- }
- }
- ]
+  "seccion": "FB50-C1",
+  "modulo": 3,
+  "grupo": "G03",
+  "prototipo": "https://PENDIENTE-cambiar-al-desplegar.onrender.com",
+  "repositorio": "https://github.com/KuroMint0/ES3-M3-Ingenieria-Software",
+  "taiga": "https://tree.taiga.io/project/kuromint-ti3043-fb50c1-m3",
+  "integrantes": [
+    { "nombre": "Alexis Sepúlveda",   "github": "KuroMint0",        "taiga": "KuroMint",     "rol": "Scrum Master" },
+    { "nombre": "Christopher Cortés", "github": "crimaxi",          "taiga": "Crimaxi",      "rol": "Analista" },
+    { "nombre": "Eric Torrejón",      "github": "nnnnagato",        "taiga": "EricTorrejon", "rol": "Arquitecto" },
+    { "nombre": "Sebastián Ortega",   "github": "SebastianOrtegaV", "taiga": "zbA",          "rol": "Product Owner" }
+  ],
+  "historias": [
+    {
+      "id": "HU-01",
+      "titulo": "Postular a la adopción de un animal",
+      "responsable": "Sebastian Ortega",
+      "verificacion": {
+        "metodo": "POST",
+        "ruta": "/api/adopciones/postulaciones",
+        "perfil": "vecino",
+        "cuerpo": { "animalId": "SIM-000001" },
+        "esperado": 201
+      }
+    },
+    {
+      "id": "HU-04",
+      "titulo": "Publicar un animal para adopción",
+      "responsable": "Christopher Cortés",
+      "verificacion": {
+        "metodo": "POST",
+        "ruta": "/api/adopciones/publicaciones",
+        "perfil": "funcionario",
+        "cuerpo": { "animalId": "SIM-000001" },
+        "esperado": 201
+      }
+    },
+    {
+      "id": "HU-11",
+      "titulo": "Aprobar adopción y actualizar el tutor en el Módulo 1",
+      "responsable": "Eric Torrejón",
+      "verificacion": {
+        "metodo": "PATCH",
+        "ruta": "/api/adopciones/postulaciones/P-DEMO-0001/estado",
+        "perfil": "funcionario",
+        "cuerpo": { "accion": "aprobar" },
+        "esperado": 200
+      }
+    },
+    {
+      "id": "HU-08",
+      "titulo": "Registrar seguimiento posterior a la adopción",
+      "responsable": "Alexis Sepúlveda",
+      "verificacion": {
+        "metodo": "POST",
+        "ruta": "/api/adopciones/postulaciones/P-DEMO-0002/seguimientos",
+        "perfil": "funcionario",
+        "cuerpo": { "nota": "Primera visita de control: animal en buen estado" },
+        "esperado": 201
+      }
+    }
+  ]
 }

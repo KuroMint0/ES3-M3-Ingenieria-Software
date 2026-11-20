@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Módulo 3 · Adopciones</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { color: #0f5d6b; }
+    fieldset { border: 1px solid #ccc; border-radius: 8px; margin-bottom: 1rem; }
+    input, button { padding: .5rem; font-size: 1rem; }
+    button { background: #0f5d6b; color: #fff; border: 0; border-radius: 6px; cursor: pointer; }
+    pre { background: #11212b; color: #d6e7ee; padding: 1rem; border-radius: 8px; overflow:auto; }
+    .ok { color: #2e7d32; } .err { color: #c62828; }
+  </style>
+</head>
+<body>
+  <h1>Módulo 3 · Adopciones</h1>
+
+  <!-- El login es CONTRA EL NÚCLEO del docente. El token que devuelve se guarda
+       y se manda en cada petición a nuestra API. -->
+  <fieldset>
+    <legend>1. Iniciar sesión (núcleo)</legend>
+    <input id="rut" placeholder="RUT (ej: 17777777-3)" value="17777777-3">
+    <input id="clave" type="password" placeholder="clave" value="tenencia2026">
+    <button onclick="login()">Entrar</button>
+    <p id="estadoSesion"></p>
+  </fieldset>
+
+  <fieldset>
+    <legend>2. Probar la API del módulo</legend>
+    <button onclick="verDisponibles()">GET /api/adopciones/disponibles</button>
+  </fieldset>
+
+  <pre id="salida">Sin datos todavía…</pre>
+
+  <script>
+    // URL del núcleo del docente (es pública, no es un secreto).
+    const NUCLEO = "https://nucleo-tr.onrender.com";
+    // Nuestra API se sirve desde el mismo origen que esta página.
+    const API = "";
+    let token = null;
+
+    async function login() {
+      const rut = document.getElementById('rut').value.trim();
+      const clave = document.getElementById('clave').value;
+      const r = await fetch(`${NUCLEO}/api/nucleo/sesiones`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rut, clave })
+      });
+      const data = await r.json();
+      const p = document.getElementById('estadoSesion');
+      if (r.ok) {
+        token = data.token;
+        p.className = 'ok';
+        p.textContent = `Sesión iniciada: ${data.nombre} (${data.perfil})`;
+      } else {
+        token = null;
+        p.className = 'err';
+        p.textContent = `Error ${r.status}: ${data.error?.mensaje || 'no se pudo entrar'}`;
+      }
+    }
+
+    async function verDisponibles() {
+      const r = await fetch(`${API}/api/adopciones/disponibles`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
+      const data = await r.json();
+      document.getElementById('salida').textContent =
+        `HTTP ${r.status}\n` + JSON.stringify(data, null, 2);
+    }
+  </script>
+</body>
+</html>
