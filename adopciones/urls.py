@@ -5,6 +5,7 @@ UNA sola línea aquí abajo para publicar su ruta. Este es el único archivo com
 """
 from django.urls import path
 from . import views, postulaciones
+from .modulos_indiv import hu_christopher
 
 urlpatterns = [
     # --- Base (Eric) ---
@@ -14,8 +15,10 @@ urlpatterns = [
     # --- HU-05 Postulaciones (Eric) ---
     path('postulaciones', postulaciones.crear_postulacion),
 
+    # --- HU-04/HU-13 Publicar animal (Christopher) ---
+    path('publicaciones', hu_christopher.publicar),
+
     # --- Cada integrante agrega su línea aquí ---
-    # path('publicaciones', publicaciones.publicar),                 # HU-04  Christopher
     # path('postulaciones/<pid>/seguimientos', seguimientos.crear),  # HU-08  Alexis
     # path('postulaciones/<pid>/estado', evaluacion.cambiar_estado), # HU-11  Eric (commit 4)
     # path('notificaciones', notificaciones.listar),                 # HU-06  Eric (commit 3)
