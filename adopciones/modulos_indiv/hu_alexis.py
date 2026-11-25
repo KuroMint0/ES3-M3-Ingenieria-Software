@@ -272,3 +272,140 @@ def procesar_cambio_estado(postulacion_id, nuevo_estado, funcionario_rut, token,
     return db.postulaciones().find_one({'postulacionId': postulacion_id}, {'_id': 0})
 
 # ENDPOINTS
+
+@api_view(['GET', 'POST'])
+@requiere_token
+def postulaciones(request):
+    """
+    GET  /api/adopciones/postulaciones -> HU-09 (Tarea #75): Listado para evaluación (funcionario).
+    POST /api/adopciones/postulaciones -> HU-12 (Tarea #58): Postular con bloqueo previo (vecino).
+    """
+    perfil = request.usuario.get('perfil')
+
+    # --- HU-09: Panel de evaluación del funcionario ---
+    if request.method == 'GET':
+        if perfil != 'funcionario':
+            return error(403, 'PERFIL_NO_AUTORIZADO', 'Se requiere perfil: funcionario')
+        animal_id = request.query_params.get('animalId')
+        estado = request.query_params.get('estado')
+        lista = listar_postulaciones_formulario(animal_id=animal_id, estado=estado)
+        return Response(paginar(lista, request))
+
+    # --- HU-12: Interceptar clic en "Postular" antes de persistir ---
+    if perfil != 'vecino':
+        return error(403, 'PERFIL_NO_AUTORIZADO', 'Se requiere perfil: vecino')
+
+    rut = request.usuario.get('rut')
+    animal_id = (request.data.get('animalId') or '').strip()
+    if not animal_id:
+        return error(400, 'DATOS_INCOMPLETOS', 'El campo animalId es obligatorio.')
+
+    try:
+        _validar_animal_id(animal_id)
+        tutor = validar_antecedentes_postulante(rut, request.token)
+        _validar_animal_id(animal_id, es_simulado=tutor.get('_simulado'))
+        formulario_guardado = _preparar_formulario(request.data.get('formulario'))
+    except ErrorReglaNegocio as exc:
+        return error(exc.status, exc.codigo, exc.mensaje)
+
+    # Validar disponibilidad en M3 (HU-04 y HU-10)
+    publicacion = db.publicaciones().find_one({'animalId': animal_id})
+    if publicacion and publicacion.get('estado') != 'disponible':
+        return error(409, 'ANIMAL_NO_DISPONIBLE', 'El animal ya no está disponible para adopción.')
+
+    # Validar animal en M1 tolerando 403 cuando el vecino aún no es su tutor (RN-05)
+    try:
+        resp_animal, es_simulado = _llamar_m1('GET', f'/api/registro/animales/{animal_id}', request.token)
+        _validar_animal_id(animal_id, es_simulado=es_simulado)
+    except ErrorReglaNegocio as exc:
+        return error(exc.status, exc.codigo, exc.mensaje)
+
+    if resp_animal.status_code == 404:
+        return error(404, 'ANIMAL_NO_ENCONTRADO', f'No existe el animal {animal_id} en Módulo 1.')
+    if resp_animal.status_code == 200:
+        animal_m1 = resp_animal.json()
+        if animal_m1.get('estado') != 'con_microchip':
+            return error(409, 'ANIMAL_NO_ADOPTABLE', 'El animal requiere estado con_microchip en Módulo 1 (RN-06).')
+    elif resp_animal.status_code == 403:
+        if not publicacion:
+            return error(404, 'ANIMAL_NO_PUBLICADO', 'El animal no está publicado como disponible en Módulo 3.')
+    else:
+        return error(502, 'ERROR_MODULO_1', 'Error al consultar el animal en Módulo 1.')
+
+    col = db.postulaciones()
+    # RN-07: no permitir si ya existe una adopción aprobada/concretada para este animal
+    if col.find_one({'animalId': animal_id, 'estado': {'$in': [estados.APROBADA, estados.ADOPCION_CONCRETADA]}}):
+        return error(409, 'ANIMAL_YA_ADOPTADO', 'Este animal ya tiene una adopción aprobada o concretada.')
+
+    # RN-11: máximo 2 postulaciones activas por vecino
+    if col.count_documents({'postulanteRut': rut, 'estado': {'$in': estados.ACTIVAS}}) >= 2:
+        return error(409, 'LIMITE_POSTULACIONES', 'Ya tienes 2 postulaciones activas (máximo permitido).')
+
+    nueva_postulacion = {
+        'postulacionId': f'P-{uuid.uuid4().hex[:8].upper()}',
+        'animalId': animal_id,
+        'postulanteRut': rut,
+        'postulanteNombre': request.usuario.get('nombre') or tutor.get('nombre'),
+        'estado': estados.RECIBIDA,
+        'fechaPostulacion': a_iso_utc(utc_actual()),
+        'formulario': formulario_guardado,
+        'historialEvaluacion': [],
+    }
+    col.insert_one(dict(nueva_postulacion))
+    return Response(nueva_postulacion, status=201)
+
+
+@api_view(['GET'])
+@requiere_token
+def detalle_postulacion(request, postulacion_id):
+    """
+    GET /api/adopciones/postulaciones/{postulacionId}
+    Entrega la postulación y los datos del formulario guardado para el panel del funcionario
+    (o al vecino dueño según RN-05).
+    """
+    doc = db.postulaciones().find_one({'postulacionId': postulacion_id}, {'_id': 0})
+    if not doc:
+        return error(404, 'POSTULACION_NO_ENCONTRADA', f'No existe la postulación {postulacion_id}.')
+
+    if request.usuario.get('perfil') == 'vecino' and doc.get('postulanteRut') != request.usuario.get('rut'):
+        return error(403, 'PERFIL_NO_AUTORIZADO', 'Solo puedes consultar tus propias postulaciones (RN-05).')
+
+    return Response(doc, status=200)
+
+
+@api_view(['PATCH'])
+@requiere_perfil('funcionario')
+def cambiar_estado(request, postulacion_id):
+    """
+    PATCH /api/adopciones/postulaciones/{postulacionId}/estado
+    Acepta tanto {"estado": "..."} como {"accion": "aprobar"} para compatibilidad con el equipo.
+    """
+    datos = request.data or {}
+    nuevo_estado = (datos.get('estado') or '').strip()
+
+    # Compatibilidad con el formato {"accion": "aprobar"} usado en entrega.json de Eric
+    mapa_acciones = {
+        'evaluar': estados.EN_EVALUACION,
+        'aprobar': estados.APROBADA,
+        'rechazar': estados.RECHAZADA,
+        'concretar': estados.ADOPCION_CONCRETADA,
+        'devolver': estados.DEVUELTO,
+    }
+    if not nuevo_estado and datos.get('accion'):
+        nuevo_estado = mapa_acciones.get(str(datos.get('accion')).strip().lower(), '')
+
+    justificacion = datos.get('justificacion_devolucion')
+    funcionario_rut = request.usuario.get('rut')
+
+    try:
+        actualizada = procesar_cambio_estado(
+            postulacion_id=postulacion_id,
+            nuevo_estado=nuevo_estado,
+            funcionario_rut=funcionario_rut,
+            token=request.token,
+            justificacion_devolucion=justificacion,
+        )
+    except ErrorReglaNegocio as exc:
+        return error(exc.status, exc.codigo, exc.mensaje)
+
+    return Response(actualizada, status=200)
