@@ -23,17 +23,19 @@
     }
     legend { color: #0f5d6b; font-weight: 700; padding: 0 .4rem; }
     label { display: block; font-weight: 600; margin-bottom: .4rem; }
-    input, button { border-radius: 6px; font: inherit; padding: .6rem .8rem; }
-    input { border: 1px solid #9aabad; max-width: 100%; }
+    input, select, button { border-radius: 6px; font: inherit; padding: .6rem .8rem; }
+    input, select { border: 1px solid #9aabad; max-width: 100%; background: #fff; }
     button {
       background: #0f5d6b;
       border: 0;
       color: #fff;
       cursor: pointer;
     }
+    button.sec { background: #53666b; }
     button:disabled { cursor: wait; opacity: .65; }
     form { display: grid; gap: .75rem; justify-items: start; }
-    .login-fields { display: flex; flex-wrap: wrap; gap: .6rem; }
+    .login-fields { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+    .check-label { display: flex; align-items: center; gap: .45rem; font-weight: 400; margin-bottom: 0; cursor: pointer; }
     .help, .muted { color: #53666b; }
     .status { min-height: 1.5rem; }
     .ok { color: #216b35; }
@@ -45,6 +47,8 @@
     .animal-card dl { display: grid; grid-template-columns: auto 1fr; gap: .35rem .7rem; }
     .animal-card dt { font-weight: 600; }
     .animal-card dd { margin: 0; overflow-wrap: anywhere; }
+    .panel-detalle { margin-top: 1rem; background: #f8fbfb; border-color: #9aabad; }
+    .panel-alerta { margin-top: 1rem; background: #fff8e6; border-color: #e0a800; }
   </style>
 </head>
 <body>
@@ -75,6 +79,72 @@
     <p id="estadoPublicacion" class="status" role="status" aria-live="polite"></p>
   </fieldset>
 
+  <!-- Panel Vecino: Formulario de postulación y bloqueo automático (HU-12) -->
+  <fieldset id="postularPanel" hidden>
+    <legend>2. Postular a adopción</legend>
+    <p class="help">Completa los datos de tu hogar para enviar la solicitud. Se validará tu historial en M1 antes de registrar.</p>
+    <form id="postularForm">
+      <div>
+        <label for="postAnimalId">Identificador del animal</label>
+        <input id="postAnimalId" name="postAnimalId" type="text" placeholder="SIM-000001" autocomplete="off" required>
+      </div>
+      <div>
+        <label for="postVivienda">Tipo de vivienda</label>
+        <select id="postVivienda" name="postVivienda">
+          <option value="Casa">Casa</option>
+          <option value="Departamento">Departamento</option>
+          <option value="Parcela">Parcela</option>
+        </select>
+      </div>
+      <label class="check-label"><input id="postPatio" type="checkbox"> Cuenta con patio o espacio exterior</label>
+      <label class="check-label"><input id="postOtros" type="checkbox"> Hay otros animales en el hogar</label>
+      <label class="check-label"><input id="postNinos" type="checkbox"> Presencia de niños en el hogar</label>
+      <div>
+        <label for="postObs">Observaciones</label>
+        <input id="postObs" name="postObs" type="text" placeholder="Información adicional del hogar...">
+      </div>
+      <label class="check-label"><input id="postConsentimiento" type="checkbox" checked> Consentimiento explícito de cohabitantes mayores de edad (Ley 21.719)</label>
+      <button id="postularButton" type="submit">Postular</button>
+    </form>
+    <p id="estadoPostulacion" class="status" role="status" aria-live="polite"></p>
+  </fieldset>
+
+  <!-- Panel Funcionario: Evaluación de postulaciones (HU-09) y Devoluciones (HU-10 / HU-15) -->
+  <fieldset id="evaluarPanel" hidden>
+    <legend>3. Evaluar postulaciones y devoluciones</legend>
+    <div class="login-fields">
+      <input id="filtroAnimalPost" type="text" placeholder="Filtrar por animalId (opcional)">
+      <button id="cargarPostulacionesBtn" type="button">Cargar postulaciones</button>
+    </div>
+    <p id="estadoEvaluacion" class="status" role="status" aria-live="polite"></p>
+    <div id="listaPostulacionesCards" class="animal-grid"></div>
+
+    <!-- Panel desplegable con los datos de la postulación seleccionada (HU-09) -->
+    <div id="detallePostulacionPanel" class="animal-card panel-detalle" hidden>
+      <h3 id="detallePostTitulo">Detalle de la postulación</h3>
+      <dl id="detallePostDatos"></dl>
+      <div class="login-fields" style="margin-top: .8rem;">
+        <label for="selectEstadoPost" style="margin-bottom: 0;">Cambiar estado:</label>
+        <select id="selectEstadoPost"></select>
+        <button id="cerrarDetallePostBtn" type="button" class="sec">Cerrar</button>
+      </div>
+    </div>
+
+    <!-- Panel de devolución con validación > 30 días (HU-10 / HU-15) -->
+    <div id="devolucionPanel" class="animal-card panel-alerta" hidden>
+      <h3 id="devolucionTitulo">Registrar devolución</h3>
+      <p id="devolucionDiasInfo" class="muted"></p>
+      <div id="devolucionJustificacionBox" hidden>
+        <label for="devolucionJustificacionInput">Justificación obligatoria (más de 30 días desde la adopción)</label>
+        <input id="devolucionJustificacionInput" type="text" style="width: 100%; box-sizing: border-box;" placeholder="Ingrese el motivo de la devolución...">
+      </div>
+      <div class="login-fields" style="margin-top: .8rem;">
+        <button id="confirmarDevolucionBtn" type="button">Confirmar devolución</button>
+        <button id="cancelarDevolucionBtn" type="button" class="sec">Cancelar</button>
+      </div>
+    </div>
+  </fieldset>
+
   <section aria-labelledby="disponiblesTitulo">
     <h2 id="disponiblesTitulo">Animales disponibles</h2>
     <button id="recargarButton" type="button">Actualizar disponibles</button>
@@ -85,16 +155,37 @@
   <script>
     const NUCLEO = "https://nucleo-tr.onrender.com";
     const API = "";
+    const ESTADOS_POSTULACION = [
+      'recibida',
+      'en_evaluacion',
+      'aprobada',
+      'rechazada',
+      'adopcion_concretada',
+      'devuelto'
+    ];
+
     let token = null;
     let perfil = null;
+    let postulacionSeleccionada = null;
+    let devolucionActiva = null;
 
     const loginForm = document.getElementById('loginForm');
     const publicarForm = document.getElementById('publicarForm');
     const publicarPanel = document.getElementById('publicarPanel');
+    const postularForm = document.getElementById('postularForm');
+    const postularPanel = document.getElementById('postularPanel');
+    const evaluarPanel = document.getElementById('evaluarPanel');
+
     const loginStatus = document.getElementById('estadoSesion');
     const publicarStatus = document.getElementById('estadoPublicacion');
+    const postularStatus = document.getElementById('estadoPostulacion');
+    const evaluarStatus = document.getElementById('estadoEvaluacion');
     const disponiblesStatus = document.getElementById('estadoDisponibles');
+
     const animalCards = document.getElementById('animalCards');
+    const listaPostulacionesCards = document.getElementById('listaPostulacionesCards');
+    const detallePostulacionPanel = document.getElementById('detallePostulacionPanel');
+    const devolucionPanel = document.getElementById('devolucionPanel');
 
     function setStatus(element, message, kind) {
       element.textContent = message;
@@ -117,6 +208,21 @@
       return token ? { 'Authorization': `Bearer ${token}` } : {};
     }
 
+    function actualizarPanelesPorPerfil() {
+      const esFuncionario = perfil === 'funcionario';
+      const esVecino = perfil === 'vecino';
+
+      publicarPanel.hidden = !esFuncionario;
+      evaluarPanel.hidden = !esFuncionario;
+      postularPanel.hidden = !esVecino;
+
+      if (!esFuncionario) {
+        detallePostulacionPanel.hidden = true;
+        devolucionPanel.hidden = true;
+        listaPostulacionesCards.replaceChildren();
+      }
+    }
+
     loginForm.addEventListener('submit', async (event) => {
       event.preventDefault();
       const rut = document.getElementById('rut').value.trim();
@@ -135,36 +241,42 @@
         if (!response.ok || !data.token) {
           token = null;
           perfil = null;
-          publicarPanel.hidden = true;
+          actualizarPanelesPorPerfil();
           setStatus(loginStatus, `Error ${response.status}: ${errorMessage(data, 'No se pudo iniciar sesión')}`, 'err');
           return;
         }
 
         token = data.token;
         perfil = data.perfil;
-        publicarPanel.hidden = perfil !== 'funcionario';
+        actualizarPanelesPorPerfil();
+
         const mensajeSesion = `Sesión iniciada: ${data.nombre} (${perfil})`;
         setStatus(
           loginStatus,
           perfil === 'funcionario'
             ? mensajeSesion
-            : `${mensajeSesion}. Publicar requiere perfil funcionario.`,
+            : `${mensajeSesion}. Publicar y evaluar requieren perfil funcionario.`,
           'ok'
         );
         if (perfil === 'funcionario') {
           setStatus(publicarStatus, '', '');
+          setStatus(evaluarStatus, '', '');
+        }
+        if (perfil === 'vecino') {
+          setStatus(postularStatus, '', '');
         }
         await cargarDisponibles();
       } catch {
         token = null;
         perfil = null;
-        publicarPanel.hidden = true;
+        actualizarPanelesPorPerfil();
         setStatus(loginStatus, 'No se pudo conectar con el núcleo. Intenta nuevamente.', 'err');
       } finally {
         button.disabled = false;
       }
     });
 
+    // HU-04 / HU-13: Publicar animal (Christopher)
     publicarForm.addEventListener('submit', async (event) => {
       event.preventDefault();
       const animalId = document.getElementById('animalId').value.trim();
@@ -209,6 +321,284 @@
       }
     });
 
+    // HU-12: Postular a adopción con bloqueo automático previo (Alexis)
+    postularForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const animalId = document.getElementById('postAnimalId').value.trim();
+      const button = document.getElementById('postularButton');
+
+      if (!animalId) {
+        setStatus(postularStatus, 'Ingresa un identificador de animal.', 'err');
+        return;
+      }
+      if (!token || perfil !== 'vecino') {
+        setStatus(postularStatus, 'Inicia sesión con un perfil vecino para postular.', 'err');
+        return;
+      }
+
+      const payload = {
+        animalId,
+        formulario: {
+          tipoVivienda: document.getElementById('postVivienda').value,
+          patioExterior: document.getElementById('postPatio').checked,
+          otrosAnimales: document.getElementById('postOtros').checked,
+          presenciaNiños: document.getElementById('postNinos').checked,
+          observaciones: document.getElementById('postObs').value.trim(),
+          consentimientoLey21719: document.getElementById('postConsentimiento').checked
+        }
+      };
+
+      button.disabled = true;
+      setStatus(postularStatus, 'Validando antecedentes en el M1…', '');
+      try {
+        const response = await fetch(`${API}/api/adopciones/postulaciones`, {
+          method: 'POST',
+          headers: {
+            ...headersConToken(),
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        const data = await readJson(response);
+        if (!response.ok) {
+          const codigo = data.error?.codigo ? `[${data.error.codigo}] ` : '';
+          setStatus(postularStatus, `${codigo}${errorMessage(data, 'No se pudo registrar la postulación.')}`, 'err');
+          return;
+        }
+
+        setStatus(postularStatus, `Postulación ${data.postulacionId} registrada en estado "${data.estado}".`, 'ok');
+        postularForm.reset();
+        document.getElementById('postConsentimiento').checked = true;
+      } catch {
+        setStatus(postularStatus, 'No se pudo conectar con el módulo de adopciones.', 'err');
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    // HU-09: Cargar listado de postulaciones para evaluación (Alexis)
+    async function cargarPostulaciones() {
+      if (!token || perfil !== 'funcionario') {
+        setStatus(evaluarStatus, 'Inicia sesión con un perfil funcionario.', 'err');
+        return;
+      }
+
+      const animalId = document.getElementById('filtroAnimalPost').value.trim();
+      const qs = animalId ? `?animalId=${encodeURIComponent(animalId)}&page=1&limit=50` : '?page=1&limit=50';
+      setStatus(evaluarStatus, 'Cargando postulaciones…', '');
+
+      try {
+        const response = await fetch(`${API}/api/adopciones/postulaciones${qs}`, {
+          headers: headersConToken()
+        });
+        const data = await readJson(response);
+        listaPostulacionesCards.replaceChildren();
+
+        if (!response.ok) {
+          setStatus(evaluarStatus, `Error ${response.status}: ${errorMessage(data, 'No se pudieron cargar las postulaciones.')}`, 'err');
+          return;
+        }
+
+        const lista = Array.isArray(data.datos) ? data.datos : [];
+        if (!lista.length) {
+          setStatus(evaluarStatus, 'No hay postulaciones registradas.', '');
+          return;
+        }
+
+        setStatus(evaluarStatus, `${lista.length} postulación(es) encontrada(s).`, 'ok');
+        for (const p of lista) {
+          const card = document.createElement('article');
+          card.className = 'animal-card';
+
+          const title = document.createElement('h3');
+          title.textContent = valorAnimal(p, 'postulacionId');
+
+          const sub = document.createElement('p');
+          sub.className = 'muted';
+          sub.textContent = `Animal: ${valorAnimal(p, 'animalId')}`;
+
+          const details = document.createElement('dl');
+          agregarDetalle(details, 'Postulante', `${p.postulanteNombre || 'No informado'} (${p.postulanteRut})`);
+          agregarDetalle(details, 'Estado', valorAnimal(p, 'estado'));
+          agregarDetalle(details, 'Fecha', valorAnimal(p, 'fechaPostulacion'));
+
+          const acciones = document.createElement('div');
+          acciones.className = 'login-fields';
+          acciones.style.marginTop = '.75rem';
+
+          const btnEvaluar = document.createElement('button');
+          btnEvaluar.type = 'button';
+          btnEvaluar.textContent = 'Ver y evaluar';
+          btnEvaluar.addEventListener('click', () => abrirDetallePostulacion(p.postulacionId));
+          acciones.appendChild(btnEvaluar);
+
+          if (p.estado === 'adopcion_concretada') {
+            const btnDevolver = document.createElement('button');
+            btnDevolver.type = 'button';
+            btnDevolver.className = 'sec';
+            btnDevolver.textContent = 'Devolver';
+            btnDevolver.addEventListener('click', () => abrirPanelDevolucion(p));
+            acciones.appendChild(btnDevolver);
+          }
+
+          card.append(title, sub, details, acciones);
+          listaPostulacionesCards.appendChild(card);
+        }
+      } catch {
+        listaPostulacionesCards.replaceChildren();
+        setStatus(evaluarStatus, 'No se pudo conectar con el módulo de adopciones.', 'err');
+      }
+    }
+
+    document.getElementById('cargarPostulacionesBtn').addEventListener('click', cargarPostulaciones);
+
+    // HU-09: Panel desplegable con los datos de la postulación seleccionada y opciones de estados.ESTADOS
+    async function abrirDetallePostulacion(postulacionId) {
+      try {
+        const response = await fetch(`${API}/api/adopciones/postulaciones/${encodeURIComponent(postulacionId)}`, {
+          headers: headersConToken()
+        });
+        const p = await readJson(response);
+        if (!response.ok) {
+          setStatus(evaluarStatus, errorMessage(p, 'No se pudo obtener el detalle de la postulación.'), 'err');
+          return;
+        }
+
+        postulacionSeleccionada = p;
+        const f = p.formulario || {};
+        const listaEstados = Array.isArray(p.estadosDisponibles) ? p.estadosDisponibles : ESTADOS_POSTULACION;
+
+        document.getElementById('detallePostTitulo').textContent = `Postulación ${p.postulacionId} · Animal ${p.animalId}`;
+
+        const dl = document.getElementById('detallePostDatos');
+        dl.replaceChildren();
+        agregarDetalle(dl, 'Postulante', `${p.postulanteNombre || 'No informado'} (${p.postulanteRut})`);
+        agregarDetalle(dl, 'Fecha postulación', valorAnimal(p, 'fechaPostulacion'));
+        agregarDetalle(dl, 'Estado actual', valorAnimal(p, 'estado'));
+        agregarDetalle(dl, 'Tipo de vivienda', valorAnimal(f, 'tipoVivienda'));
+        agregarDetalle(dl, 'Patio exterior', f.patioExterior ? 'Sí' : 'No');
+        agregarDetalle(dl, 'Otros animales', f.otrosAnimales ? 'Sí' : 'No');
+        agregarDetalle(dl, 'Presencia de niños', f.presenciaNiños ? 'Sí' : 'No');
+        agregarDetalle(dl, 'Consentimiento Ley 21.719', f.consentimientoLey21719 ? 'Aceptado' : 'No');
+        if (f.observaciones) {
+          agregarDetalle(dl, 'Observaciones', f.observaciones);
+        }
+
+        const select = document.getElementById('selectEstadoPost');
+        select.replaceChildren();
+        for (const est of listaEstados) {
+          const opt = document.createElement('option');
+          opt.value = est;
+          opt.textContent = est;
+          if (est === p.estado) opt.selected = true;
+          select.appendChild(opt);
+        }
+
+        detallePostulacionPanel.hidden = false;
+      } catch {
+        setStatus(evaluarStatus, 'No se pudo cargar el detalle de la postulación.', 'err');
+      }
+    }
+
+    document.getElementById('cerrarDetallePostBtn').addEventListener('click', () => {
+      postulacionSeleccionada = null;
+      detallePostulacionPanel.hidden = true;
+    });
+
+    document.getElementById('selectEstadoPost').addEventListener('change', async (event) => {
+      const nuevoEstado = event.target.value;
+      if (!nuevoEstado || !postulacionSeleccionada || nuevoEstado === postulacionSeleccionada.estado) return;
+
+      if (nuevoEstado === 'devuelto') {
+        abrirPanelDevolucion(postulacionSeleccionada);
+        return;
+      }
+
+      const id = postulacionSeleccionada.postulacionId;
+      try {
+        const response = await fetch(`${API}/api/adopciones/postulaciones/${encodeURIComponent(id)}/estado`, {
+          method: 'PATCH',
+          headers: {
+            ...headersConToken(),
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ estado: nuevoEstado })
+        });
+        const data = await readJson(response);
+        if (!response.ok) {
+          const codigo = data.error?.codigo ? `[${data.error.codigo}] ` : '';
+          setStatus(evaluarStatus, `${codigo}${errorMessage(data, 'No se pudo actualizar el estado.')}`, 'err');
+          event.target.value = postulacionSeleccionada.estado;
+          return;
+        }
+
+        setStatus(evaluarStatus, `Postulación ${id} actualizada a "${data.estado}".`, 'ok');
+        await abrirDetallePostulacion(id);
+        await cargarPostulaciones();
+        await cargarDisponibles();
+      } catch {
+        setStatus(evaluarStatus, 'No se pudo conectar con el módulo de adopciones.', 'err');
+        event.target.value = postulacionSeleccionada.estado;
+      }
+    });
+
+    // HU-10 y HU-15: Devolución de animal y justificación obligatoria tras 30 días (Alexis)
+    function abrirPanelDevolucion(postulacion) {
+      devolucionActiva = postulacion;
+      const fechaRef = new Date(postulacion.fechaAdopcion || postulacion.fechaPostulacion);
+      const dias = Math.floor((Date.now() - fechaRef.getTime()) / (1000 * 60 * 60 * 24));
+
+      document.getElementById('devolucionTitulo').textContent = `Devolución ${postulacion.animalId} (${postulacion.postulacionId})`;
+      document.getElementById('devolucionDiasInfo').textContent = `Días transcurridos desde la adopción: ${dias} días.`;
+      document.getElementById('devolucionJustificacionBox').hidden = dias <= 30;
+      document.getElementById('devolucionJustificacionInput').value = '';
+      devolucionPanel.hidden = false;
+    }
+
+    document.getElementById('cancelarDevolucionBtn').addEventListener('click', () => {
+      devolucionActiva = null;
+      devolucionPanel.hidden = true;
+      if (postulacionSeleccionada) {
+        document.getElementById('selectEstadoPost').value = postulacionSeleccionada.estado;
+      }
+    });
+
+    document.getElementById('confirmarDevolucionBtn').addEventListener('click', async () => {
+      if (!devolucionActiva) return;
+      const id = devolucionActiva.postulacionId;
+      const justificacion = document.getElementById('devolucionJustificacionInput').value;
+
+      try {
+        const response = await fetch(`${API}/api/adopciones/postulaciones/${encodeURIComponent(id)}/estado`, {
+          method: 'PATCH',
+          headers: {
+            ...headersConToken(),
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            estado: 'devuelto',
+            justificacion_devolucion: justificacion
+          })
+        });
+        const data = await readJson(response);
+        if (!response.ok) {
+          const codigo = data.error?.codigo ? `[${data.error.codigo}] ` : '';
+          setStatus(evaluarStatus, `${codigo}${errorMessage(data, 'No se pudo registrar la devolución.')}`, 'err');
+          return;
+        }
+
+        devolucionActiva = null;
+        devolucionPanel.hidden = true;
+        detallePostulacionPanel.hidden = true;
+        setStatus(evaluarStatus, `Animal ${data.animalId} marcado como devuelto y republicado como disponible.`, 'ok');
+        await cargarPostulaciones();
+        await cargarDisponibles();
+      } catch {
+        setStatus(evaluarStatus, 'No se pudo conectar con el módulo de adopciones.', 'err');
+      }
+    });
+
+    // Catálogo de animales disponibles
     document.getElementById('recargarButton').addEventListener('click', cargarDisponibles);
 
     function valorAnimal(animal, campo) {
@@ -247,7 +637,21 @@
         agregarDetalle(details, 'Raza', valorAnimal(animal, 'raza'));
         agregarDetalle(details, 'Edad aproximada', valorAnimal(animal, 'edadAproximada'));
         agregarDetalle(details, 'Microchip', valorAnimal(animal, 'microchip'));
+
         card.append(title, id, details);
+
+        if (perfil === 'vecino') {
+          const btnElegir = document.createElement('button');
+          btnElegir.type = 'button';
+          btnElegir.style.marginTop = '.6rem';
+          btnElegir.textContent = 'Postular a este animal';
+          btnElegir.addEventListener('click', () => {
+            document.getElementById('postAnimalId').value = animal.animalId;
+            postularPanel.scrollIntoView({ behavior: 'smooth' });
+          });
+          card.appendChild(btnElegir);
+        }
+
         animalCards.append(card);
       }
     }
