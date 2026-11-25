@@ -97,7 +97,6 @@ def calcular_animales_tutor(rut, datos_tutor):
     )
     return max(cargo_m1, len(ids_m1 | ids_m3))
 
-
 # Funciones importables para los demás integrantes del grupo
 
 # Función para validar los antecedentes del postulante
@@ -125,3 +124,151 @@ def validar_antecedentes_postulante(rut, token):
             f'Postulación bloqueada: {", ".join(motivos)}.',
         )
     return tutor
+
+# Función para listar las postulaciones
+def _preparar_formulario(raw_formulario):
+    if not isinstance(raw_formulario, dict):
+        raw_formulario = {}
+
+    if raw_formulario and raw_formulario.get('consentimientoLey21719') is False:
+        raise ErrorReglaNegocio(
+            400,
+            'CONSENTIMIENTO_REQUERIDO',
+            'Debe aceptar el consentimiento explícito de cohabitantes (Ley 21.719) para postular.',
+        )
+
+    formulario_guardado = {
+        'tipoVivienda': str(raw_formulario.get('tipoVivienda') or 'No especificado').strip(),
+        'patioExterior': bool(raw_formulario.get('patioExterior', False)),
+        'otrosAnimales': bool(raw_formulario.get('otrosAnimales', False)),
+        'presenciaNiños': bool(
+            raw_formulario.get('presenciaNiños')
+            if 'presenciaNiños' in raw_formulario
+            else raw_formulario.get('presenciaNinos', False)
+        ),
+        'consentimientoLey21719': bool(raw_formulario.get('consentimientoLey21719', True)),
+    }
+    for clave, valor in raw_formulario.items():
+        if clave not in formulario_guardado and clave != 'presenciaNinos':
+            formulario_guardado[clave] = valor
+    return formulario_guardado
+
+def listar_postulaciones_formulario(animal_id=None, estado=None):
+    
+    filtro = {}
+    if animal_id:
+        filtro['animalId'] = animal_id
+    if estado:
+        filtro['estado'] = estado
+    docs = list(db.postulaciones().find(filtro, {'_id': 0}).sort('fechaPostulacion', -1))
+    for doc in docs:
+        if not isinstance(doc.get('formulario'), dict):
+            doc['formulario'] = {}
+        doc['estadosDisponibles'] = list(estados.ESTADOS)
+    return docs
+
+def procesar_cambio_estado(postulacion_id, nuevo_estado, funcionario_rut, token, justificacion_devolucion=None):
+    
+    if nuevo_estado not in estados.ESTADOS:
+        raise ErrorReglaNegocio(400, 'ESTADO_INVALIDO', f'El estado "{nuevo_estado}" no es válido.')
+
+    postulacion = db.postulaciones().find_one({'postulacionId': postulacion_id}, {'_id': 0})
+    if not postulacion:
+        raise ErrorReglaNegocio(404, 'POSTULACION_NO_ENCONTRADA', f'No existe la postulación {postulacion_id}.')
+
+    estado_actual = postulacion['estado']
+    if not estados.puede_transicionar(estado_actual, nuevo_estado):
+        raise ErrorReglaNegocio(
+            409,
+            'TRANSICION_INVALIDA',
+            f'No se puede pasar de "{estado_actual}" a "{nuevo_estado}".',
+        )
+
+    ahora = utc_actual()
+    ahora_str = a_iso_utc(ahora)
+    cambios = {'estado': nuevo_estado}
+
+    # Integración con el módulo del Eric
+    from adopciones.modulos_indiv import hu_eric
+
+    if nuevo_estado == estados.APROBADA:
+        hu_eric.actualizar_tutor_m1(postulacion['animalId'], postulacion['postulanteRut'], token)
+        hu_eric.crear_notificacion(
+            postulacion['postulanteRut'],
+            f'Tu postulación {postulacion_id} para el animal {postulacion["animalId"]} fue APROBADA.',
+        )
+
+    if nuevo_estado == estados.RECHAZADA:
+        hu_eric.crear_notificacion(
+            postulacion['postulanteRut'],
+            f'Tu postulación {postulacion_id} para el animal {postulacion["animalId"]} fue RECHAZADA.',
+        )
+
+    if nuevo_estado == estados.ADOPCION_CONCRETADA:
+        cambios['fechaAdopcion'] = ahora_str
+        db.publicaciones().update_one(
+            {'animalId': postulacion['animalId']},
+            {'$set': {'estado': 'adoptado', 'fechaActualizacion': ahora_str}},
+            upsert=True,
+        )
+        hu_eric.actualizar_tutor_m1(postulacion['animalId'], postulacion['postulanteRut'], token)
+
+    if nuevo_estado == estados.DEVUELTO:
+        fecha_inicio = desde_iso_utc(postulacion.get('fechaAdopcion')) or desde_iso_utc(postulacion.get('fechaPostulacion'))
+        dias_transcurridos = (ahora - fecha_inicio).days if fecha_inicio else 0
+        justificacion_limpia = (justificacion_devolucion or '').strip()
+
+        # HU-15 (RN-09): Obligatorio justificar si la devolución ocurre después de 30 días
+        if dias_transcurridos > DIAS_SIN_JUSTIFICACION and not justificacion_limpia:
+            raise ErrorReglaNegocio(
+                400,
+                'JUSTIFICACION_OBLIGATORIA',
+                f'Han transcurrido {dias_transcurridos} días desde la adopción (> 30 días). Debe ingresar una justificación obligatoria.',
+            )
+
+        # HU-10: Desvincular tutor en M1 mediante PATCH /api/registro/animales/{animalId}/tutor con null
+        resp_m1, es_simulado = _llamar_m1(
+            'PATCH',
+            f'/api/registro/animales/{postulacion["animalId"]}/tutor',
+            token,
+            json_body={'tutorRut': None},
+        )
+        if resp_m1.status_code not in (200, 204):
+            raise ErrorReglaNegocio(
+                409 if resp_m1.status_code == 409 else 502,
+                'ERROR_ACTUALIZAR_TUTOR_M1',
+                'Módulo 1 rechazó la desvinculación del tutor al registrar la devolución.',
+            )
+
+        cambios['fechaDevolucion'] = ahora_str
+        cambios['diasDesdeAdopcion'] = dias_transcurridos
+        cambios['justificacion_devolucion'] = justificacion_limpia or None
+        cambios['m1Simulado'] = es_simulado
+
+        # HU-10: El animal vuelve a estar disponible en el catálogo público de M3
+        db.publicaciones().update_one(
+            {'animalId': postulacion['animalId']},
+            {'$set': {'estado': 'disponible', 'fechaActualizacion': ahora_str}},
+            upsert=True,
+        )
+
+    entrada_historial = {
+        'estadoAnterior': estado_actual,
+        'estadoNuevo': nuevo_estado,
+        'funcionarioRut': funcionario_rut,
+        'fecha': ahora_str,
+    }
+    if nuevo_estado == estados.DEVUELTO and cambios.get('justificacion_devolucion'):
+        entrada_historial['justificacion_devolucion'] = cambios['justificacion_devolucion']
+
+    db.postulaciones().update_one(
+        {'postulacionId': postulacion_id},
+        {
+            '$set': cambios,
+            '$push': {'historialEvaluacion': entrada_historial},
+        },
+    )
+
+    return db.postulaciones().find_one({'postulacionId': postulacion_id}, {'_id': 0})
+
+# ENDPOINTS
