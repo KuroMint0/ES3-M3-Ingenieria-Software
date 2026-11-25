@@ -18,6 +18,7 @@ urlpatterns = [
     # --- HU-06 Notificaciones (Eric) ---
     path('notificaciones', hu_eric.notificaciones),
     path('notificaciones/<nid>/leida', hu_eric.marcar_leida),
+    path('sincronizaciones', hu_eric.sincronizar_tutor),            # HU-11 (prueba/manual)
 
     # --- Cada integrante agrega su línea aquí ---
     # path('postulaciones/<pid>/estado', evaluacion.cambiar_estado), # HU-11  Eric
