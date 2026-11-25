@@ -62,6 +62,7 @@ prueba el botón **GET /api/adopciones/disponibles**.
 |---|---|---|
 | `GET /api/adopciones/salud` | público | — |
 | `GET /api/adopciones/disponibles` | con token | lista de animales publicados |
+| `POST /api/adopciones/publicaciones` | funcionario | HU-04/HU-13: publicar animal con microchip |
 | *(se irán agregando las historias de cada integrante)* | | |
 
 Convenciones: rutas en plural, respuestas JSON, errores `{"error":{"codigo","mensaje"}}`,
@@ -72,4 +73,9 @@ listados `?page=1&limit=20`, fechas ISO 8601 UTC, `404` para lo que no existe,
 
 - **Build command:** `pip install -r requirements.txt`
 - **Start command:** `gunicorn config.wsgi:application`
-- Variables de entorno: las de la tabla de arriba (con `DJANGO_DEBUG=False`).
+- Define `DJANGO_DEBUG=False` y `NUCLEO_URL=https://nucleo-tr.onrender.com`.
+- Configura `DJANGO_SECRET_KEY`, `DJANGO_ALLOWED_HOSTS`, `MONGO_URI` y `MONGO_DB`
+  desde las variables de entorno del servicio en Render. No agregues secretos al
+  repositorio ni al archivo `render.yaml`.
+- Al crear el servicio desde `render.yaml`, su nombre será `adopciones-tr`; confirma
+  la URL asignada por Render antes de actualizar `entrega.json`.
