@@ -1,15 +1,15 @@
-
+# Entornos y secretos
 .venv/
 venv/
 env/
 .env
 *.env
 
-
+# Python
 __pycache__/
 *.pyc
 
-
+# Editores / SO
 .vscode/
 .idea/
 .DS_Store
