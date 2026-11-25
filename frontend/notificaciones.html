@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mis avisos · Adopciones</title>
+  <style>
+    :root { --tint:#0f5d6b; }
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; color:#1b2b33; }
+    h1 { color: var(--tint); display:flex; align-items:center; gap:.5rem; }
+    .campana { position:relative; font-size:1.6rem; }
+    .badge { position:absolute; top:-6px; right:-10px; background:#e23b3b; color:#fff;
+             font-size:.72rem; font-weight:700; min-width:18px; height:18px; border-radius:9px;
+             display:flex; align-items:center; justify-content:center; padding:0 4px; }
+    fieldset { border:1px solid #cdd8dc; border-radius:8px; margin-bottom:1rem; }
+    input,button { padding:.5rem; font-size:1rem; }
+    button { background:var(--tint); color:#fff; border:0; border-radius:6px; cursor:pointer; }
+    button.sec { background:#e8eef0; color:var(--tint); }
+    .aviso { border:1px solid #e1e8ea; border-left:4px solid #cdd8dc; border-radius:8px;
+             padding:.7rem .9rem; margin-bottom:.6rem; background:#fff; }
+    .aviso.no-leida { border-left-color:var(--tint); background:#f3fafb; }
+    .aviso .meta { font-size:.78rem; color:#6a7a80; margin-top:.25rem; display:flex;
+                   justify-content:space-between; align-items:center; gap:.5rem; }
+    .punto { width:9px; height:9px; border-radius:50%; background:var(--tint); display:inline-block; margin-right:.4rem; }
+    .vacio { color:#6a7a80; }
+    #estadoSesion { font-size:.85rem; }
+    .ok { color:#2e7d32; } .err { color:#c62828; }
+  </style>
+</head>
+<body>
+  <h1><span class="campana">🔔<span id="badge" class="badge" style="display:none">0</span></span> Mis avisos</h1>
+
+  <!-- Login contra el núcleo (como vecino tutor) -->
+  <fieldset>
+    <legend>Iniciar sesión (vecino)</legend>
+    <input id="rut" placeholder="RUT" value="11111111-1">
+    <input id="clave" type="password" placeholder="clave" value="tenencia2026">
+    <button onclick="login()">Entrar</button>
+    <button class="sec" onclick="cargar()">Actualizar</button>
+    <p id="estadoSesion"></p>
+  </fieldset>
+
+  <div id="lista"><p class="vacio">Inicia sesión para ver tus avisos.</p></div>
+
+  <script>
+    const NUCLEO = "https://nucleo-tr.onrender.com";
+    // Si la página la sirve el mismo backend, usa su origen; si la abres como archivo, apunta a localhost.
+    const API = (location.protocol.startsWith("http")) ? "" : "http://localhost:8000";
+    let token = null;
+
+    async function login() {
+      const rut = document.getElementById('rut').value.trim();
+      const clave = document.getElementById('clave').value;
+      const p = document.getElementById('estadoSesion');
+      try {
+        const r = await fetch(`${NUCLEO}/api/nucleo/sesiones`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rut, clave })
+        });
+        const data = await r.json();
+        if (!r.ok) { token = null; p.className='err'; p.textContent = `Error ${r.status}: ${data.error?.mensaje||''}`; return; }
+        token = data.token;
+        p.className = 'ok'; p.textContent = `Sesión: ${data.nombre} (${data.perfil})`;
+        cargar();
+      } catch (e) { p.className='err'; p.textContent = 'No se pudo conectar al núcleo.'; }
+    }
+
+    async function cargar() {
+      if (!token) return;
+      const cont = document.getElementById('lista');
+      const r = await fetch(`${API}/api/adopciones/notificaciones`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await r.json();
+      if (!r.ok) { cont.innerHTML = `<p class="err">Error ${r.status}: ${data.error?.mensaje||''}</p>`; return; }
+      render(data.datos || []);
+    }
+
+    function render(avisos) {
+      const cont = document.getElementById('lista');
+      const noLeidas = avisos.filter(a => !a.leida).length;
+      const badge = document.getElementById('badge');
+      badge.style.display = noLeidas ? 'flex' : 'none';
+      badge.textContent = noLeidas;
+
+      if (!avisos.length) { cont.innerHTML = '<p class="vacio">No tienes avisos.</p>'; return; }
+
+      cont.innerHTML = avisos.map(a => `
+        <div class="aviso ${a.leida ? '' : 'no-leida'}">
+          <div>${a.leida ? '' : '<span class="punto"></span>'}${escapar(a.mensaje)}</div>
+          <div class="meta">
+            <span>${a.fechaCreacion}</span>
+            ${a.leida ? '<span>leída</span>'
+                      : `<button class="sec" onclick="marcar('${a.notificacionId}')">Marcar leída</button>`}
+          </div>
+        </div>`).join('');
+    }
+
+    async function marcar(id) {
+      const r = await fetch(`${API}/api/adopciones/notificaciones/${id}/leida`, {
+        method: 'PATCH', headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (r.ok) cargar();
+    }
+
+    // Evita inyección de HTML en el mensaje (OWASP: salida escapada).
+    function escapar(s) {
+      return String(s).replace(/[&<>"']/g, c => (
+        { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    }
+  </script>
+</body>
+</html>
