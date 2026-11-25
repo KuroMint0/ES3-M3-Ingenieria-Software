@@ -5,7 +5,7 @@ y agrega UNA sola línea aquí abajo. Este es el único archivo compartido.
 """
 from django.urls import path
 from . import views
-from .modulos_indiv import hu_christopher, hu_eric
+from .modulos_indiv import hu_christopher, hu_eric, hu_alexis
 
 urlpatterns = [
     # --- Base (Eric) ---
@@ -19,6 +19,11 @@ urlpatterns = [
     path('notificaciones', hu_eric.notificaciones),
     path('notificaciones/<nid>/leida', hu_eric.marcar_leida),
     path('sincronizaciones', hu_eric.sincronizar_tutor),            # HU-11 (prueba/manual)
+
+    # --- HU-12, HU-09, HU-10 y HU-15 (Alexis) ---
+    path('postulaciones', hu_alexis.postulaciones),
+    path('postulaciones/<str:postulacion_id>', hu_alexis.detalle_postulacion),
+    path('postulaciones/<str:postulacion_id>/estado', hu_alexis.cambiar_estado),
 
     # --- Cada integrante agrega su línea aquí ---
     # path('postulaciones/<pid>/estado', evaluacion.cambiar_estado), # HU-11  Eric
