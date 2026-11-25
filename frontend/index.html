@@ -5,70 +5,270 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Módulo 3 · Adopciones</title>
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; }
-    h1 { color: #0f5d6b; }
-    fieldset { border: 1px solid #ccc; border-radius: 8px; margin-bottom: 1rem; }
-    input, button { padding: .5rem; font-size: 1rem; }
-    button { background: #0f5d6b; color: #fff; border: 0; border-radius: 6px; cursor: pointer; }
-    pre { background: #11212b; color: #d6e7ee; padding: 1rem; border-radius: 8px; overflow:auto; }
-    .ok { color: #2e7d32; } .err { color: #c62828; }
+    :root {
+      color-scheme: light;
+      font-family: system-ui, sans-serif;
+      color: #203239;
+      background: #f3f7f7;
+    }
+
+    body { max-width: 960px; margin: 2rem auto; padding: 0 1rem; }
+    h1, h2 { color: #0f5d6b; }
+    fieldset, .animal-card {
+      border: 1px solid #c9d6d8;
+      border-radius: 10px;
+      background: #fff;
+      margin-bottom: 1rem;
+      padding: 1rem;
+    }
+    legend { color: #0f5d6b; font-weight: 700; padding: 0 .4rem; }
+    label { display: block; font-weight: 600; margin-bottom: .4rem; }
+    input, button { border-radius: 6px; font: inherit; padding: .6rem .8rem; }
+    input { border: 1px solid #9aabad; max-width: 100%; }
+    button {
+      background: #0f5d6b;
+      border: 0;
+      color: #fff;
+      cursor: pointer;
+    }
+    button:disabled { cursor: wait; opacity: .65; }
+    form { display: grid; gap: .75rem; justify-items: start; }
+    .login-fields { display: flex; flex-wrap: wrap; gap: .6rem; }
+    .help, .muted { color: #53666b; }
+    .status { min-height: 1.5rem; }
+    .ok { color: #216b35; }
+    .err { color: #a32121; }
+    .animal-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+    .animal-card { margin: 0; }
+    .animal-card h3 { color: #0f5d6b; margin: 0 0 .35rem; }
+    .animal-card p { margin: .35rem 0; overflow-wrap: anywhere; }
+    .animal-card dl { display: grid; grid-template-columns: auto 1fr; gap: .35rem .7rem; }
+    .animal-card dt { font-weight: 600; }
+    .animal-card dd { margin: 0; overflow-wrap: anywhere; }
   </style>
 </head>
 <body>
   <h1>Módulo 3 · Adopciones</h1>
 
-  <!-- El login es CONTRA EL NÚCLEO del docente. El token que devuelve se guarda
-       y se manda en cada petición a nuestra API. -->
   <fieldset>
-    <legend>1. Iniciar sesión (núcleo)</legend>
-    <input id="rut" placeholder="RUT (ej: 17777777-3)" value="17777777-3">
-    <input id="clave" type="password" placeholder="clave" value="tenencia2026">
-    <button onclick="login()">Entrar</button>
-    <p id="estadoSesion"></p>
+    <legend>1. Iniciar sesión</legend>
+    <form id="loginForm">
+      <div class="login-fields">
+        <input id="rut" name="rut" placeholder="RUT (ej: 17777777-3)" value="17777777-3" autocomplete="username" required>
+        <input id="clave" name="clave" type="password" placeholder="Clave" value="tenencia2026" autocomplete="current-password" required>
+      </div>
+      <button id="loginButton" type="submit">Entrar</button>
+    </form>
+    <p id="estadoSesion" class="status" role="status" aria-live="polite"></p>
   </fieldset>
 
-  <fieldset>
-    <legend>2. Probar la API del módulo</legend>
-    <button onclick="verDisponibles()">GET /api/adopciones/disponibles</button>
+  <fieldset id="publicarPanel" hidden>
+    <legend>2. Publicar animal para adopción</legend>
+    <p class="help">Ingresa el identificador del M1. El sistema verifica el microchip; no ingreses ese estado manualmente.</p>
+    <form id="publicarForm">
+      <div>
+        <label for="animalId">Identificador del animal</label>
+        <input id="animalId" name="animalId" type="text" placeholder="SIM-000001" autocomplete="off" required>
+      </div>
+      <button id="publicarButton" type="submit">Publicar animal</button>
+    </form>
+    <p id="estadoPublicacion" class="status" role="status" aria-live="polite"></p>
   </fieldset>
 
-  <pre id="salida">Sin datos todavía…</pre>
+  <section aria-labelledby="disponiblesTitulo">
+    <h2 id="disponiblesTitulo">Animales disponibles</h2>
+    <button id="recargarButton" type="button">Actualizar disponibles</button>
+    <p id="estadoDisponibles" class="status" role="status" aria-live="polite"></p>
+    <div id="animalCards" class="animal-grid"></div>
+  </section>
 
   <script>
-    // URL del núcleo del docente (es pública, no es un secreto).
     const NUCLEO = "https://nucleo-tr.onrender.com";
-    // Nuestra API se sirve desde el mismo origen que esta página.
     const API = "";
     let token = null;
+    let perfil = null;
 
-    async function login() {
-      const rut = document.getElementById('rut').value.trim();
-      const clave = document.getElementById('clave').value;
-      const r = await fetch(`${NUCLEO}/api/nucleo/sesiones`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rut, clave })
-      });
-      const data = await r.json();
-      const p = document.getElementById('estadoSesion');
-      if (r.ok) {
-        token = data.token;
-        p.className = 'ok';
-        p.textContent = `Sesión iniciada: ${data.nombre} (${data.perfil})`;
-      } else {
-        token = null;
-        p.className = 'err';
-        p.textContent = `Error ${r.status}: ${data.error?.mensaje || 'no se pudo entrar'}`;
+    const loginForm = document.getElementById('loginForm');
+    const publicarForm = document.getElementById('publicarForm');
+    const publicarPanel = document.getElementById('publicarPanel');
+    const loginStatus = document.getElementById('estadoSesion');
+    const publicarStatus = document.getElementById('estadoPublicacion');
+    const disponiblesStatus = document.getElementById('estadoDisponibles');
+    const animalCards = document.getElementById('animalCards');
+
+    function setStatus(element, message, kind) {
+      element.textContent = message;
+      element.className = `status ${kind || ''}`;
+    }
+
+    async function readJson(response) {
+      try {
+        return await response.json();
+      } catch {
+        return {};
       }
     }
 
-    async function verDisponibles() {
-      const r = await fetch(`${API}/api/adopciones/disponibles`, {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-      });
-      const data = await r.json();
-      document.getElementById('salida').textContent =
-        `HTTP ${r.status}\n` + JSON.stringify(data, null, 2);
+    function errorMessage(data, fallback) {
+      return data.error?.mensaje || fallback;
+    }
+
+    function headersConToken() {
+      return token ? { 'Authorization': `Bearer ${token}` } : {};
+    }
+
+    loginForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const rut = document.getElementById('rut').value.trim();
+      const clave = document.getElementById('clave').value;
+      const button = document.getElementById('loginButton');
+      button.disabled = true;
+      setStatus(loginStatus, 'Conectando con el núcleo…', '');
+
+      try {
+        const response = await fetch(`${NUCLEO}/api/nucleo/sesiones`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rut, clave })
+        });
+        const data = await readJson(response);
+        if (!response.ok || !data.token) {
+          token = null;
+          perfil = null;
+          publicarPanel.hidden = true;
+          setStatus(loginStatus, `Error ${response.status}: ${errorMessage(data, 'No se pudo iniciar sesión')}`, 'err');
+          return;
+        }
+
+        token = data.token;
+        perfil = data.perfil;
+        publicarPanel.hidden = perfil !== 'funcionario';
+        const mensajeSesion = `Sesión iniciada: ${data.nombre} (${perfil})`;
+        setStatus(
+          loginStatus,
+          perfil === 'funcionario'
+            ? mensajeSesion
+            : `${mensajeSesion}. Publicar requiere perfil funcionario.`,
+          'ok'
+        );
+        if (perfil === 'funcionario') {
+          setStatus(publicarStatus, '', '');
+        }
+        await cargarDisponibles();
+      } catch {
+        token = null;
+        perfil = null;
+        publicarPanel.hidden = true;
+        setStatus(loginStatus, 'No se pudo conectar con el núcleo. Intenta nuevamente.', 'err');
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    publicarForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const animalId = document.getElementById('animalId').value.trim();
+      const button = document.getElementById('publicarButton');
+      if (!animalId) {
+        setStatus(publicarStatus, 'Ingresa un identificador de animal.', 'err');
+        return;
+      }
+      if (!token || perfil !== 'funcionario') {
+        setStatus(publicarStatus, 'Inicia sesión con un perfil funcionario para publicar.', 'err');
+        return;
+      }
+
+      button.disabled = true;
+      setStatus(publicarStatus, 'Validando el animal en el M1…', '');
+      try {
+        const response = await fetch(`${API}/api/adopciones/publicaciones`, {
+          method: 'POST',
+          headers: {
+            ...headersConToken(),
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ animalId })
+        });
+        const data = await readJson(response);
+        if (!response.ok) {
+          const mensaje = errorMessage(data, 'No se pudo publicar el animal.');
+          const detalle = response.status === 409
+            ? `No se puede publicar: ${mensaje}`
+            : `Error ${response.status}: ${mensaje}`;
+          setStatus(publicarStatus, detalle, 'err');
+          return;
+        }
+
+        setStatus(publicarStatus, `${data.nombre || animalId} fue publicado correctamente.`, 'ok');
+        publicarForm.reset();
+        await cargarDisponibles();
+      } catch {
+        setStatus(publicarStatus, 'No se pudo conectar con el módulo de adopciones.', 'err');
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    document.getElementById('recargarButton').addEventListener('click', cargarDisponibles);
+
+    function valorAnimal(animal, campo) {
+      const valor = animal[campo];
+      return valor === null || valor === undefined || valor === ''
+        ? 'No informado'
+        : String(valor);
+    }
+
+    function agregarDetalle(lista, etiqueta, valor) {
+      const termino = document.createElement('dt');
+      termino.textContent = etiqueta;
+      const descripcion = document.createElement('dd');
+      descripcion.textContent = valor;
+      lista.append(termino, descripcion);
+    }
+
+    function mostrarAnimales(animales) {
+      animalCards.replaceChildren();
+      if (!animales.length) {
+        setStatus(disponiblesStatus, 'No hay animales publicados disponibles.', '');
+        return;
+      }
+
+      setStatus(disponiblesStatus, `${animales.length} animal(es) disponible(s).`, 'ok');
+      for (const animal of animales) {
+        const card = document.createElement('article');
+        card.className = 'animal-card';
+        const title = document.createElement('h3');
+        title.textContent = valorAnimal(animal, 'nombre');
+        const id = document.createElement('p');
+        id.className = 'muted';
+        id.textContent = valorAnimal(animal, 'animalId');
+        const details = document.createElement('dl');
+        agregarDetalle(details, 'Especie', valorAnimal(animal, 'especie'));
+        agregarDetalle(details, 'Raza', valorAnimal(animal, 'raza'));
+        agregarDetalle(details, 'Edad aproximada', valorAnimal(animal, 'edadAproximada'));
+        agregarDetalle(details, 'Microchip', valorAnimal(animal, 'microchip'));
+        card.append(title, id, details);
+        animalCards.append(card);
+      }
+    }
+
+    async function cargarDisponibles() {
+      setStatus(disponiblesStatus, 'Cargando animales…', '');
+      try {
+        const response = await fetch(`${API}/api/adopciones/disponibles?page=1&limit=100`, {
+          headers: headersConToken()
+        });
+        const data = await readJson(response);
+        if (!response.ok) {
+          animalCards.replaceChildren();
+          setStatus(disponiblesStatus, `Error ${response.status}: ${errorMessage(data, 'No se pudieron cargar los animales')}`, 'err');
+          return;
+        }
+        mostrarAnimales(Array.isArray(data.datos) ? data.datos : []);
+      } catch {
+        animalCards.replaceChildren();
+        setStatus(disponiblesStatus, 'No se pudo conectar con el módulo de adopciones.', 'err');
+      }
     }
   </script>
 </body>
