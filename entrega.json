@@ -27,7 +27,7 @@
     {
       "id": "HU-04",
       "titulo": "Publicar un animal para adopción",
-      "responsable": "crimaxi",
+      "responsable": "Christopher Cortés",
       "verificacion": {
         "metodo": "POST",
         "ruta": "/api/adopciones/publicaciones",
