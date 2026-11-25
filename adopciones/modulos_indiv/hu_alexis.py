@@ -96,3 +96,32 @@ def calcular_animales_tutor(rut, datos_tutor):
         )
     )
     return max(cargo_m1, len(ids_m1 | ids_m3))
+
+
+# Funciones importables para los demás integrantes del grupo
+
+# Función para validar los antecedentes del postulante
+def validar_antecedentes_postulante(rut, token):
+    tutor = consultar_tutor(rut, token)
+    motivos = []
+    codigos = []
+
+    # Validar prohibición de tenencia
+    if bool(tutor.get('prohibicionTenencia')):
+        codigos.append('prohibicion_tenencia')
+        motivos.append('El postulante tiene prohibición de tenencia de animales.')
+
+    # Validar la cantidad de animales a cargo actuales (no cuenta comunitarios)
+    cant_animales = calcular_animales_tutor(rut, tutor)
+    if cant_animales >= MAX_ANIMALES_POR_TUTOR:
+        codigos.append('max_animales')
+        motivos.append(f'El postulante tiene a cargo {cant_animales} animales, supenrando el máximo permitido de {MAX_ANIMALES_POR_TUTOR}.')
+
+    if motivos:
+        codigo_principal = codigos[0] if len(codigos) == 1 else 'postulacion_bloqueada_multiple'
+        raise ErrorReglaNegocio(
+            409,
+            codigo_principal,
+            f'Postulación bloqueada: {", ".join(motivos)}.',
+        )
+    return tutor
