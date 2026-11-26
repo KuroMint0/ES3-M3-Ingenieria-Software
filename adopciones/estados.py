@@ -15,17 +15,20 @@ APROBADA = 'aprobada'
 RECHAZADA = 'rechazada'
 ADOPCION_CONCRETADA = 'adopcion_concretada'
 DEVUELTO = 'devuelto'
+CANCELADA = 'cancelada'          # HU-06 #82: el postulante retira su solicitud
 
-ESTADOS = [RECIBIDA, EN_EVALUACION, APROBADA, RECHAZADA, ADOPCION_CONCRETADA, DEVUELTO]
+ESTADOS = [RECIBIDA, EN_EVALUACION, APROBADA, RECHAZADA, ADOPCION_CONCRETADA, DEVUELTO, CANCELADA]
 
 # De cada estado, a qué estados se puede pasar.
+# Solo se puede cancelar una postulación que sigue "viva" (recibida o en evaluación).
 TRANSICIONES = {
-    RECIBIDA: [EN_EVALUACION, APROBADA, RECHAZADA],
-    EN_EVALUACION: [APROBADA, RECHAZADA],
+    RECIBIDA: [EN_EVALUACION, APROBADA, RECHAZADA, CANCELADA],
+    EN_EVALUACION: [APROBADA, RECHAZADA, CANCELADA],
     APROBADA: [ADOPCION_CONCRETADA],
     ADOPCION_CONCRETADA: [DEVUELTO],
     RECHAZADA: [],
     DEVUELTO: [],
+    CANCELADA: [],
 }
 
 # Estados en los que la postulación "sigue viva" (cuenta para el máximo de 2, RN-11).
