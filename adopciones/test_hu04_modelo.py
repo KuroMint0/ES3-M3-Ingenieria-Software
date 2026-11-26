@@ -75,6 +75,24 @@ class ModeloPublicacionAnimalTests(SimpleTestCase):
         self.assertEqual(respuesta.status_code, 403)
         self.obtener_animal_mock.assert_not_called()
 
+    def test_bloquea_publicacion_si_el_microchip_no_esta_activo(self):
+        for estado in (False, None, '', 'sin_microchip'):
+            with self.subTest(estado=estado):
+                animal_sin_microchip = {**ANIMAL_M1, 'estado': estado}
+                self.obtener_animal_mock.return_value = SimpleNamespace(
+                    status_code=200,
+                    json=lambda animal=animal_sin_microchip: animal,
+                )
+
+                respuesta = self.publicar({'animalId': 'SIM-000001'})
+
+                self.assertEqual(respuesta.status_code, 409)
+                self.assertEqual(
+                    respuesta.data['error']['codigo'],
+                    'ANIMAL_SIN_MICROCHIP',
+                )
+                self.publicaciones.insert_one.assert_not_called()
+
     def test_crea_documento_con_campos_opcionales_vacios(self):
         respuesta = self.publicar({'animalId': 'SIM-000001'})
 
