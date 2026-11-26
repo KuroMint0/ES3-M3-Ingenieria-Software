@@ -74,9 +74,9 @@ class HU05Postulacion(SimpleTestCase):
         self._n += 1
         return f'P-{self._n:06d}'
 
-    def _postular(self, rut):
+    def _postular(self, rut, animal_id='SIM-000001'):
         req = self.factory.post(
-            '/x', {'animalId': 'SIM-000001', 'formulario': FORMULARIO},
+            '/x', {'animalId': animal_id, 'formulario': FORMULARIO},
             format='json', HTTP_AUTHORIZATION='Bearer tok')
         sesion = {'rut': rut, 'perfil': 'vecino', 'nombre': 'T'}
         pub = mock.Mock()
@@ -109,3 +109,30 @@ class HU05Postulacion(SimpleTestCase):
     def test_estados_activos_son_los_esperados(self):
         """Las postulaciones 'vivas' (Pendiente/En Revisión) son recibida y en_evaluacion."""
         self.assertEqual(set(estados.ACTIVAS), {estados.RECIBIDA, estados.EN_EVALUACION})
+
+    def test_rechazar_una_de_dos_activas_permite_una_nueva_postulacion(self):
+        rut = '11.111.111-1'
+        primera = self._postular(rut, 'SIM-000001')
+        segunda = self._postular(rut, 'SIM-000002')
+        self.assertEqual(primera.status_code, 201)
+        self.assertEqual(segunda.status_code, 201)
+        self.assertEqual(
+            self.col.count_documents({
+                'postulanteRut': rut,
+                'estado': {'$in': estados.ACTIVAS},
+            }),
+            2,
+        )
+
+        self.col.docs[0]['estado'] = estados.RECHAZADA
+        tercera = self._postular(rut, 'SIM-000003')
+
+        self.assertEqual(tercera.status_code, 201)
+        self.assertEqual(
+            self.col.count_documents({
+                'postulanteRut': rut,
+                'estado': {'$in': estados.ACTIVAS},
+            }),
+            2,
+        )
+        self.assertEqual(self.col.docs[0]['estado'], estados.RECHAZADA)

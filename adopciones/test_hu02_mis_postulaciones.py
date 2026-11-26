@@ -34,7 +34,7 @@ class MisPostulacionesApiTests(SimpleTestCase):
                 json=lambda: {'rut': RUT_VECINO, 'perfil': 'vecino'},
             ),
         )
-        self.sesion.start()
+        self.validar_sesion = self.sesion.start()
         self.addCleanup(self.sesion.stop)
 
     def test_lista_solo_las_del_token_ordenadas_y_paginadas(self):
@@ -88,4 +88,66 @@ class MisPostulacionesApiTests(SimpleTestCase):
         publicaciones.find.assert_called_once_with(
             {'postulanteRut': RUT_VECINO},
             {'_id': 0},
+        )
+
+    def test_cada_vecino_ve_sus_postulaciones_y_el_estado_actualizado(self):
+        otro_rut = '22222222-2'
+        documentos = [
+            {
+                'postulacionId': 'P-000011',
+                'postulanteRut': RUT_VECINO,
+                'animalId': 'SIM-000011',
+                'estado': 'recibida',
+                'fechaPostulacion': '2026-01-10T12:00:00Z',
+            },
+            {
+                'postulacionId': 'P-000022',
+                'postulanteRut': otro_rut,
+                'animalId': 'SIM-000022',
+                'estado': 'en_evaluacion',
+                'fechaPostulacion': '2026-01-11T12:00:00Z',
+            },
+        ]
+        publicaciones = Mock()
+        publicaciones.find.side_effect = lambda filtro, _proyeccion: (
+            CursorPostulacionesFake([
+                dict(documento) for documento in documentos
+                if documento['postulanteRut'] == filtro['postulanteRut']
+            ])
+        )
+
+        def sesion_de(rut):
+            return SimpleNamespace(
+                status_code=200,
+                json=lambda: {'rut': rut, 'perfil': 'vecino'},
+            )
+
+        self.validar_sesion.side_effect = [
+            sesion_de(RUT_VECINO),
+            sesion_de(otro_rut),
+            sesion_de(RUT_VECINO),
+        ]
+
+        with patch(
+            'adopciones.modulos_indiv.hu_alexis.db.postulaciones',
+            return_value=publicaciones,
+        ):
+            respuesta_vecino = self.client.get('/api/adopciones/postulaciones')
+            respuesta_otro = self.client.get('/api/adopciones/postulaciones')
+            documentos[0]['estado'] = 'rechazada'
+            respuesta_actualizada = self.client.get('/api/adopciones/postulaciones')
+
+        self.assertEqual(respuesta_vecino.status_code, 200)
+        self.assertEqual(
+            [item['postulacionId'] for item in respuesta_vecino.data['datos']],
+            ['P-000011'],
+        )
+        self.assertEqual(respuesta_vecino.data['datos'][0]['estado'], 'recibida')
+        self.assertEqual(
+            [item['postulacionId'] for item in respuesta_otro.data['datos']],
+            ['P-000022'],
+        )
+        self.assertEqual(
+            respuesta_actualizada.data['datos'][0]['estado'],
+            'rechazada',
         )
