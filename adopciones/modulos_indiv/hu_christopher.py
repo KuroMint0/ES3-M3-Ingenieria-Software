@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from adopciones import db, nucleo
+from adopciones import db, modelos, nucleo
 from adopciones.respuestas import error
 from adopciones.seguridad import requiere_perfil
 
@@ -20,6 +20,13 @@ def publicar(request):
     if not isinstance(animal_id, str) or not animal_id.strip():
         return error(400, 'ANIMAL_ID_INVALIDO', 'animalId debe ser un texto no vacío')
     animal_id = animal_id.strip()
+
+    campos_opcionales = {}
+    for campo in ('descripcion', 'fotografia'):
+        valor = request.data.get(campo)
+        if valor is not None and not isinstance(valor, str):
+            return error(400, 'CAMPO_INVALIDO', f'{campo} debe ser texto o estar vacío')
+        campos_opcionales[campo] = valor.strip() or None if valor is not None else None
 
     try:
         respuesta = nucleo.obtener_animal(animal_id, request.token)
@@ -53,12 +60,18 @@ def publicar(request):
         return error(409, 'ANIMAL_YA_PUBLICADO',
                      'El animal ya tiene una publicación')
 
-    documento = {
+    documento: modelos.Animal = {
         'animalId': animal_id,
-        'estado': 'disponible',
+        'nombre': animal['nombre'],
+        'especie': animal['especie'],
+        'raza': animal['raza'],
+        'edadAproximada': animal['edadAproximada'],
+        'microchip': animal['microchip'],
+        'estado': modelos.ESTADO_DISPONIBLE,
         'publicadoPorRut': request.usuario['rut'],
         'fechaPublicacion': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+        'descripcion': campos_opcionales['descripcion'],
+        'fotografia': campos_opcionales['fotografia'],
     }
-    documento.update({campo: animal[campo] for campo in _CAMPOS_ANIMAL})
     publicaciones.insert_one(dict(documento))
     return Response(documento, status=201)
