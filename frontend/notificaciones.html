@@ -40,6 +40,14 @@
     <p id="estadoSesion"></p>
   </fieldset>
 
+  <!-- HU-06 #82: cancelar una postulación propia y recibir el aviso automático -->
+  <fieldset>
+    <legend>Cancelar una postulación</legend>
+    <input id="cancelId" placeholder="ID de postulación (P-000001)">
+    <button onclick="cancelar()">Cancelar postulación</button>
+    <p id="estadoCancelar"></p>
+  </fieldset>
+
   <div id="lista"><p class="vacio">Inicia sesión para ver tus avisos.</p></div>
 
   <script>
@@ -101,6 +109,21 @@
         method: 'PATCH', headers: { 'Authorization': `Bearer ${token}` }
       });
       if (r.ok) cargar();
+    }
+
+    // HU-06 #82: cancelar la postulación -> el backend genera el aviso al tutor.
+    async function cancelar() {
+      const p = document.getElementById('estadoCancelar');
+      const id = document.getElementById('cancelId').value.trim();
+      if (!token) { p.className = 'err'; p.textContent = 'Inicia sesión primero.'; return; }
+      if (!id) { p.className = 'err'; p.textContent = 'Ingresa el ID de la postulación.'; return; }
+      const r = await fetch(`${API}/api/adopciones/postulaciones/${encodeURIComponent(id)}/cancelar`, {
+        method: 'POST', headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) { p.className = 'err'; p.textContent = `Error ${r.status}: ${data.error?.mensaje || ''}`; return; }
+      p.className = ''; p.textContent = `Postulación ${id} cancelada. Tu aviso aparece abajo.`;
+      cargar();
     }
 
     // Evita inyección de HTML en el mensaje (OWASP: salida escapada).
