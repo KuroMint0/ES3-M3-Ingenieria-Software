@@ -6,7 +6,9 @@ acceso a datos quedan en un solo lugar y son fáciles de explicar y probar.
 """
 from pymongo import ASCENDING, ReturnDocument
 
-from . import db, estados
+from . import db, estados, modelos
+
+_indices_creados = False
 
 
 def siguiente_id():
@@ -70,6 +72,49 @@ def agregar_control(postulacion_id, control):
     return resultado.matched_count == 1
 
 
+def aprobar_animal_y_cancelar_hermanas(animal_id, postulacion_id, fecha):
+    """
+    Reserva el animal para la postulación aprobada y cierra las demás activas.
+
+    La actualización condicional de la publicación impide que dos aprobaciones
+    simultáneas reclamen el mismo animal.
+    """
+    resultado = db.publicaciones().update_one(
+        {'animalId': animal_id, 'estado': 'disponible'},
+        {
+            '$set': {
+                'estado': modelos.ESTADO_ADOPTADO,
+                'fechaActualizacion': fecha,
+                'postulacionAprobadaId': postulacion_id,
+            },
+        },
+    )
+    if resultado.matched_count != 1:
+        return False
+
+    db.postulaciones().update_many(
+        {
+            'animalId': animal_id,
+            'postulacionId': {'$ne': postulacion_id},
+            'estado': {'$in': estados.CANCELABLES_POR_ADOPCION},
+        },
+        {
+            '$set': {
+                'estado': estados.CANCELADA_POR_ADOPCION,
+                'fechaCancelacion': fecha,
+                'motivoCancelacion': 'adopcion_concretada',
+            },
+        },
+    )
+    return True
+
+
+def asegurar_indices():
+    """Crea los índices necesarios una vez por proceso, antes de aceptar envíos."""
+    if not _indices_creados:
+        crear_indices()
+
+
 def crear_indices():
     """
     Crea los índices de la colección. Se ejecuta con: python manage.py sembrar_demo
@@ -82,6 +127,7 @@ def crear_indices():
        Requiere MongoDB 6.0 o superior (Atlas lo cumple).
     2) Único sobre postulacionId.
     """
+    global _indices_creados
     col = db.postulaciones()
     col.create_index(
         [('animalId', ASCENDING), ('postulanteRut', ASCENDING)],
@@ -94,3 +140,4 @@ def crear_indices():
         unique=True,
         name='postulacion_id_unico',
     )
+    _indices_creados = True

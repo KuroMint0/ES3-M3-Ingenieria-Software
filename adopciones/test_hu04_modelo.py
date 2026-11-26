@@ -129,3 +129,4 @@ class CatalogoAnimalPublicoTests(SimpleTestCase):
         self.assertEqual(respuesta.status_code, 200)
         self.assertEqual(respuesta.data['total'], 1)
         self.assertEqual(respuesta.data['datos'][0]['animalId'], 'SIM-000001')
+        publicaciones.find.assert_called_once_with({'estado': 'disponible'}, {'_id': 0})

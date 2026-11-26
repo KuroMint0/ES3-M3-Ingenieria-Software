@@ -1,12 +1,11 @@
-from datetime import date, datetime, timezone
-import os
-import uuid
+from datetime import datetime, timezone
 
 import requests
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from adopciones import db, estados, nucleo
+from adopciones import repositorio_postulaciones as repo
 from adopciones.respuestas import error, paginar
 from adopciones.seguridad import requiere_perfil, requiere_token
 
@@ -48,27 +47,6 @@ def _llamar_m1(metodo, ruta, token, json_body=None):
 
     es_simulado = respuesta.headers.get('X-Simulado', '').strip().lower() == 'true'
     return respuesta, es_simulado
-
-def _validar_animal_id(animal_id, es_simulado=None):
-    "Se valida que el animalId tenga prefijo SIM- o A-"
-    if not animal_id.startswith(('SIM-', 'A-')):
-        raise ErrorReglaNegocio(
-            400, 
-            'animal_id_invalido',
-            f'El animalId {animal_id} no tiene prefijo SIM- o A-'
-        )
-    if es_simulado is True and not animal_id.startswith('SIM-'):
-        raise ErrorReglaNegocio(
-            400, 
-            'animal_id_invalido',
-            f'El entorno M1 actual es simulado, pero el animalId {animal_id} no tiene prefijo SIM-'
-        )
-    if es_simulado is False and not animal_id.startswith('A-'):
-        raise ErrorReglaNegocio(
-            400, 
-            'animal_id_invalido',
-            f'El entorno M1 actual es real, pero el animalId {animal_id} no tiene prefijo A-'
-        )
 
 def consultar_tutor(rut, token):
     respuesta, es_simulado = _llamar_m1('GET', f'/api/registro/tutores/{rut}', token)
@@ -125,34 +103,6 @@ def validar_antecedentes_postulante(rut, token):
         )
     return tutor
 
-# Función para listar las postulaciones
-def _preparar_formulario(raw_formulario):
-    if not isinstance(raw_formulario, dict):
-        raw_formulario = {}
-
-    if raw_formulario and raw_formulario.get('consentimientoLey21719') is False:
-        raise ErrorReglaNegocio(
-            400,
-            'CONSENTIMIENTO_REQUERIDO',
-            'Debe aceptar el consentimiento explícito de cohabitantes (Ley 21.719) para postular.',
-        )
-
-    formulario_guardado = {
-        'tipoVivienda': str(raw_formulario.get('tipoVivienda') or 'No especificado').strip(),
-        'patioExterior': bool(raw_formulario.get('patioExterior', False)),
-        'otrosAnimales': bool(raw_formulario.get('otrosAnimales', False)),
-        'presenciaNiños': bool(
-            raw_formulario.get('presenciaNiños')
-            if 'presenciaNiños' in raw_formulario
-            else raw_formulario.get('presenciaNinos', False)
-        ),
-        'consentimientoLey21719': bool(raw_formulario.get('consentimientoLey21719', True)),
-    }
-    for clave, valor in raw_formulario.items():
-        if clave not in formulario_guardado and clave != 'presenciaNinos':
-            formulario_guardado[clave] = valor
-    return formulario_guardado
-
 def listar_postulaciones_formulario(animal_id=None, estado=None):
     
     filtro = {}
@@ -164,7 +114,7 @@ def listar_postulaciones_formulario(animal_id=None, estado=None):
     for doc in docs:
         if not isinstance(doc.get('formulario'), dict):
             doc['formulario'] = {}
-        doc['estadosDisponibles'] = list(estados.ESTADOS)
+        doc['estadosDisponibles'] = list(estados.TRANSICIONES.get(doc.get('estado'), []))
     return docs
 
 def procesar_cambio_estado(postulacion_id, nuevo_estado, funcionario_rut, token, justificacion_devolucion=None):
@@ -192,6 +142,17 @@ def procesar_cambio_estado(postulacion_id, nuevo_estado, funcionario_rut, token,
     from adopciones.modulos_indiv import hu_eric
 
     if nuevo_estado == estados.APROBADA:
+        if not repo.aprobar_animal_y_cancelar_hermanas(
+            postulacion['animalId'],
+            postulacion_id,
+            ahora_str,
+        ):
+            raise ErrorReglaNegocio(
+                409,
+                'ANIMAL_NO_DISPONIBLE',
+                'El animal ya no está disponible para otra aprobación.',
+            )
+        cambios['fechaAprobacion'] = ahora_str
         hu_eric.actualizar_tutor_m1(postulacion['animalId'], postulacion['postulanteRut'], token)
         hu_eric.crear_notificacion(
             postulacion['postulanteRut'],
@@ -206,12 +167,6 @@ def procesar_cambio_estado(postulacion_id, nuevo_estado, funcionario_rut, token,
 
     if nuevo_estado == estados.ADOPCION_CONCRETADA:
         cambios['fechaAdopcion'] = ahora_str
-        db.publicaciones().update_one(
-            {'animalId': postulacion['animalId']},
-            {'$set': {'estado': 'adoptado', 'fechaActualizacion': ahora_str}},
-            upsert=True,
-        )
-        hu_eric.actualizar_tutor_m1(postulacion['animalId'], postulacion['postulanteRut'], token)
 
     if nuevo_estado == estados.DEVUELTO:
         fecha_inicio = desde_iso_utc(postulacion.get('fechaAdopcion')) or desde_iso_utc(postulacion.get('fechaPostulacion'))
@@ -277,8 +232,8 @@ def procesar_cambio_estado(postulacion_id, nuevo_estado, funcionario_rut, token,
 @requiere_token
 def postulaciones(request):
     """
-    GET  /api/adopciones/postulaciones -> HU-09 (Tarea #75): Listado para evaluación (funcionario).
-    POST /api/adopciones/postulaciones -> HU-12 (Tarea #58): Postular con bloqueo previo (vecino).
+    GET  /api/adopciones/postulaciones -> HU-09: listado para evaluación (funcionario).
+    POST /api/adopciones/postulaciones -> HU-01/HU-07: guardar formulario (vecino).
     """
     perfil = request.usuario.get('perfil')
 
@@ -291,74 +246,14 @@ def postulaciones(request):
         lista = listar_postulaciones_formulario(animal_id=animal_id, estado=estado)
         return Response(paginar(lista, request))
 
-    # --- HU-12: Interceptar clic en "Postular" antes de persistir ---
+    # --- HU-01/HU-07: guardar la postulación con su formulario completo ---
     if perfil != 'vecino':
         return error(403, 'PERFIL_NO_AUTORIZADO', 'Se requiere perfil: vecino')
 
     # HU-01/HU-07: delegar al validador propio de esta funcionalidad.
     # Se mantiene HU-09/HU-12 y el resto de endpoints de este modulo.
-    from adopciones.views_postulaciones import crear_postulacion
-    return crear_postulacion(request)
-
-    # Compatibilidad mantenida solo como referencia del flujo anterior.
-    rut = request.usuario.get('rut')
-    animal_id = (request.data.get('animalId') or '').strip()
-    if not animal_id:
-        return error(400, 'DATOS_INCOMPLETOS', 'El campo animalId es obligatorio.')
-
-    try:
-        _validar_animal_id(animal_id)
-        tutor = validar_antecedentes_postulante(rut, request.token)
-        _validar_animal_id(animal_id, es_simulado=tutor.get('_simulado'))
-        formulario_guardado = _preparar_formulario(request.data.get('formulario'))
-    except ErrorReglaNegocio as exc:
-        return error(exc.status, exc.codigo, exc.mensaje)
-
-    # Validar disponibilidad en M3 (HU-04 y HU-10)
-    publicacion = db.publicaciones().find_one({'animalId': animal_id})
-    if publicacion and publicacion.get('estado') != 'disponible':
-        return error(409, 'ANIMAL_NO_DISPONIBLE', 'El animal ya no está disponible para adopción.')
-
-    # Validar animal en M1 tolerando 403 cuando el vecino aún no es su tutor (RN-05)
-    try:
-        resp_animal, es_simulado = _llamar_m1('GET', f'/api/registro/animales/{animal_id}', request.token)
-        _validar_animal_id(animal_id, es_simulado=es_simulado)
-    except ErrorReglaNegocio as exc:
-        return error(exc.status, exc.codigo, exc.mensaje)
-
-    if resp_animal.status_code == 404:
-        return error(404, 'ANIMAL_NO_ENCONTRADO', f'No existe el animal {animal_id} en Módulo 1.')
-    if resp_animal.status_code == 200:
-        animal_m1 = resp_animal.json()
-        if animal_m1.get('estado') != 'con_microchip':
-            return error(409, 'ANIMAL_NO_ADOPTABLE', 'El animal requiere estado con_microchip en Módulo 1 (RN-06).')
-    elif resp_animal.status_code == 403:
-        if not publicacion:
-            return error(404, 'ANIMAL_NO_PUBLICADO', 'El animal no está publicado como disponible en Módulo 3.')
-    else:
-        return error(502, 'ERROR_MODULO_1', 'Error al consultar el animal en Módulo 1.')
-
-    col = db.postulaciones()
-    # RN-07: no permitir si ya existe una adopción aprobada/concretada para este animal
-    if col.find_one({'animalId': animal_id, 'estado': {'$in': [estados.APROBADA, estados.ADOPCION_CONCRETADA]}}):
-        return error(409, 'ANIMAL_YA_ADOPTADO', 'Este animal ya tiene una adopción aprobada o concretada.')
-
-    # RN-11: máximo 2 postulaciones activas por vecino
-    if col.count_documents({'postulanteRut': rut, 'estado': {'$in': estados.ACTIVAS}}) >= 2:
-        return error(409, 'LIMITE_POSTULACIONES', 'Ya tienes 2 postulaciones activas (máximo permitido).')
-
-    nueva_postulacion = {
-        'postulacionId': f'P-{uuid.uuid4().hex[:8].upper()}',
-        'animalId': animal_id,
-        'postulanteRut': rut,
-        'postulanteNombre': request.usuario.get('nombre') or tutor.get('nombre'),
-        'estado': estados.RECIBIDA,
-        'fechaPostulacion': a_iso_utc(utc_actual()),
-        'formulario': formulario_guardado,
-        'historialEvaluacion': [],
-    }
-    col.insert_one(dict(nueva_postulacion))
-    return Response(nueva_postulacion, status=201)
+    from adopciones.views_postulaciones import procesar_creacion_postulacion
+    return procesar_creacion_postulacion(request)
 
 
 @api_view(['GET'])
@@ -376,6 +271,7 @@ def detalle_postulacion(request, postulacion_id):
     if request.usuario.get('perfil') == 'vecino' and doc.get('postulanteRut') != request.usuario.get('rut'):
         return error(403, 'PERFIL_NO_AUTORIZADO', 'Solo puedes consultar tus propias postulaciones (RN-05).')
 
+    doc['estadosDisponibles'] = list(estados.TRANSICIONES.get(doc.get('estado'), []))
     return Response(doc, status=200)
 
 

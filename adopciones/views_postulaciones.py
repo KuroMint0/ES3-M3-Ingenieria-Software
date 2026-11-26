@@ -35,9 +35,7 @@ def _json(respuesta):
         return None
 
 
-@api_view(['POST'])
-@requiere_perfil('vecino')          # pasos 1 y 2: 401 sin token, 403 si no es vecino
-def crear_postulacion(request):
+def procesar_creacion_postulacion(request):
     # --- Paso 3: validar el cuerpo ANTES de usarlo en cualquier otra cosa ------
     datos = request.data            # JSON roto -> ParseError -> 400 (manejador_excepciones)
 
@@ -90,6 +88,7 @@ def crear_postulacion(request):
                      'La persona tiene prohibición de tenencia y no puede postular')
 
     # --- Paso 8: duplicado (1.ª capa, mensaje claro) -------------------------------
+    repo.asegurar_indices()
     if repo.buscar_activa(animal_id, rut):
         return error(409, 'POSTULACION_DUPLICADA',
                      'Ya tienes una postulación activa para este animal')
@@ -123,7 +122,7 @@ def crear_postulacion(request):
         'estado': estados.RECIBIDA,                     # estado inicial de la ficha
         'fechaPostulacion': datetime.now(timezone.utc),
         'formulario': dict(validados['formulario']),
-        'historiaEvaluacion': [],
+        'historialEvaluacion': [],
         'seguimientoPosterior': [],
     }
     try:
@@ -135,3 +134,9 @@ def crear_postulacion(request):
 
     # --- Paso 10 ---------------------------------------------------------------------
     return Response(creado, status=201)
+
+
+@api_view(['POST'])
+@requiere_perfil('vecino')
+def crear_postulacion(request):
+    return procesar_creacion_postulacion(request)

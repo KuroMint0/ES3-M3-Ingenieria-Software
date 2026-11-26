@@ -15,8 +15,17 @@ APROBADA = 'aprobada'
 RECHAZADA = 'rechazada'
 ADOPCION_CONCRETADA = 'adopcion_concretada'
 DEVUELTO = 'devuelto'
+CANCELADA_POR_ADOPCION = 'cancelada_por_adopcion_concretada'
 
-ESTADOS = [RECIBIDA, EN_EVALUACION, APROBADA, RECHAZADA, ADOPCION_CONCRETADA, DEVUELTO]
+ESTADOS = [
+    RECIBIDA,
+    EN_EVALUACION,
+    APROBADA,
+    RECHAZADA,
+    ADOPCION_CONCRETADA,
+    DEVUELTO,
+    CANCELADA_POR_ADOPCION,
+]
 
 # De cada estado, a qué estados se puede pasar.
 TRANSICIONES = {
@@ -26,10 +35,14 @@ TRANSICIONES = {
     ADOPCION_CONCRETADA: [DEVUELTO],
     RECHAZADA: [],
     DEVUELTO: [],
+    CANCELADA_POR_ADOPCION: [],
 }
 
 # Estados en los que la postulación "sigue viva" (cuenta para el máximo de 2, RN-11).
 ACTIVAS = [RECIBIDA, EN_EVALUACION]
+
+# Estados de otras postulaciones que se cierran cuando se aprueba una adopción.
+CANCELABLES_POR_ADOPCION = [RECIBIDA, EN_EVALUACION, APROBADA]
 
 
 def puede_transicionar(actual, nuevo):
