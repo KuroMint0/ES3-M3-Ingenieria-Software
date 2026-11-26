@@ -13,7 +13,7 @@ from django.http import FileResponse
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from adopciones import db, nucleo
+from adopciones import db, estados, nucleo
 from adopciones.respuestas import error, paginar
 from adopciones.seguridad import requiere_token
 
@@ -77,6 +77,66 @@ def marcar_leida(request, nid):
     col.update_one({'notificacionId': nid}, {'$set': {'leida': True}})
     noti['leida'] = True
     return Response(noti)
+
+
+# =====================================================================
+# HU-06 · #82 CANCELACIÓN DE POSTULACIÓN + ALERTA AL TUTOR
+#   El evento de cancelación (manual, o disparado por HU-16) marca la
+#   postulación como 'cancelada' y genera automáticamente un aviso interno
+#   para el tutor afectado (el postulante).
+# =====================================================================
+@api_view(['POST'])
+@requiere_token
+def cancelar_postulacion(request, postulacion_id):
+    """POST /api/adopciones/postulaciones/<id>/cancelar
+
+    Cancela una postulación que todavía está viva (recibida / en_evaluacion) y
+    avisa al tutor afectado. Puede cancelarla:
+      - el VECINO dueño de la postulación (retira su propia solicitud), o
+      - un FUNCIONARIO (cancelación manual del lado del municipio / HU-16).
+    """
+    perfil = request.usuario['perfil']
+    rut_sesion = request.usuario['rut']
+
+    col = db.postulaciones()
+    post = col.find_one({'postulacionId': postulacion_id}, {'_id': 0})
+    if not post:
+        return error(404, 'POSTULACION_NO_ENCONTRADA',
+                     f'No existe la postulación {postulacion_id}')
+
+    # Autorización: el vecino solo puede cancelar la suya; el funcionario, cualquiera.
+    if perfil == 'vecino':
+        if post.get('postulanteRut') != rut_sesion:
+            return error(403, 'PERFIL_NO_AUTORIZADO',
+                         'Solo puedes cancelar tus propias postulaciones')
+    elif perfil not in ('funcionario', 'admin'):
+        return error(403, 'PERFIL_NO_AUTORIZADO',
+                     'Se requiere perfil: vecino (dueño) o funcionario')
+
+    # Solo se cancela una postulación que sigue viva (RN: no sobre aprobada/rechazada/etc.)
+    estado_actual = post.get('estado')
+    if not estados.puede_transicionar(estado_actual, estados.CANCELADA):
+        return error(409, 'TRANSICION_INVALIDA',
+                     f'No se puede cancelar una postulación en estado "{estado_actual}"')
+
+    resultado = col.update_one(
+        {'postulacionId': postulacion_id, 'estado': estado_actual},
+        {'$set': {'estado': estados.CANCELADA, 'fechaCancelacion': _ahora_iso()}},
+    )
+    if resultado.matched_count != 1:
+        return error(409, 'TRANSICION_INVALIDA',
+                     'La postulación cambió de estado y ya no se puede cancelar')
+
+    # Alerta automática al tutor afectado (el postulante).
+    aviso = crear_notificacion(
+        post['postulanteRut'],
+        f'Tu postulación {postulacion_id} para el animal {post.get("animalId")} fue CANCELADA.',
+    )
+
+    return Response(
+        {'postulacionId': postulacion_id, 'estado': estados.CANCELADA, 'notificacion': aviso},
+        status=200,
+    )
 
 
 # =====================================================================

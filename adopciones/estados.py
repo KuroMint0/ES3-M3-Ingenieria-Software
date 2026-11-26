@@ -15,6 +15,7 @@ APROBADA = 'aprobada'
 RECHAZADA = 'rechazada'
 ADOPCION_CONCRETADA = 'adopcion_concretada'
 DEVUELTO = 'devuelto'
+CANCELADA = 'cancelada'
 CANCELADA_POR_ADOPCION = 'cancelada_por_adopcion_concretada'
 
 ESTADOS = [
@@ -24,17 +25,20 @@ ESTADOS = [
     RECHAZADA,
     ADOPCION_CONCRETADA,
     DEVUELTO,
+    CANCELADA,
     CANCELADA_POR_ADOPCION,
 ]
 
 # De cada estado, a qué estados se puede pasar.
+# Solo se puede cancelar una postulación que sigue "viva" (recibida o en evaluación).
 TRANSICIONES = {
-    RECIBIDA: [EN_EVALUACION, APROBADA, RECHAZADA],
-    EN_EVALUACION: [APROBADA, RECHAZADA],
+    RECIBIDA: [EN_EVALUACION, APROBADA, RECHAZADA, CANCELADA],
+    EN_EVALUACION: [APROBADA, RECHAZADA, CANCELADA],
     APROBADA: [ADOPCION_CONCRETADA],
     ADOPCION_CONCRETADA: [DEVUELTO],
     RECHAZADA: [],
     DEVUELTO: [],
+    CANCELADA: [],
     CANCELADA_POR_ADOPCION: [],
 }
 

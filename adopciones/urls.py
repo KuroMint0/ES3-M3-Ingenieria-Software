@@ -20,6 +20,7 @@ urlpatterns = [
     path('notificaciones/<nid>/leida', hu_eric.marcar_leida),
     path('sincronizaciones', hu_eric.sincronizar_tutor),            # HU-11 (prueba/manual)
     path('mis-avisos', hu_eric.bandeja),                            # HU-06 pantalla de la bandeja
+    path('postulaciones/<str:postulacion_id>/cancelar', hu_eric.cancelar_postulacion),  # HU-06 #82
 
     # --- HU-12, HU-09, HU-10 y HU-15 (Alexis) ---
     path('postulaciones', hu_alexis.postulaciones),
