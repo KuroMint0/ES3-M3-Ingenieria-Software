@@ -94,6 +94,27 @@ def crear_postulacion(request):
         return error(409, 'POSTULACION_DUPLICADA',
                      'Ya tienes una postulación activa para este animal')
 
+    # --- Paso 8.5: antecedentes del postulante (HU-12, RN-10) ----------------------
+    # Reconecta la validación de Alexis (máximo de animales a cargo). La prohibición
+    # de tenencia ya se verificó en el Paso 7, así que aquí el aporte real es el tope
+    # de animales. Import local para evitar import circular con hu_alexis, que delega
+    # el POST a esta misma función.
+    from .modulos_indiv.hu_alexis import (
+        ErrorReglaNegocio,
+        validar_antecedentes_postulante,
+    )
+    try:
+        validar_antecedentes_postulante(rut, request.token)
+    except ErrorReglaNegocio as exc:
+        if exc.status == 409:
+            # Bloqueo real de negocio (p. ej. supera el máximo de animales a cargo).
+            return error(409, exc.codigo, exc.mensaje)
+        if exc.status != 404:
+            # 404 = la persona no tiene ficha de tutor todavía (0 animales a cargo):
+            # se permite postular. Cualquier otro fallo (M1 caído) cierra el paso.
+            return error(503, 'NUCLEO_NO_DISPONIBLE',
+                         'No se pudieron verificar los antecedentes del postulante')
+
     # --- Paso 9: armar el documento. TODO lo sensible lo asigna el servidor ---------
     documento = {
         'postulacionId': repo.siguiente_id(),
