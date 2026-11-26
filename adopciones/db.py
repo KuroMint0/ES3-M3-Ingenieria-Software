@@ -5,6 +5,7 @@ Usamos una única conexión perezosa (se crea la primera vez que se pide).
 La URI y el nombre de la base vienen de variables de entorno: NUNCA en el código.
 """
 import os
+import gridfs
 from pymongo import MongoClient
 
 _cliente = None
@@ -15,7 +16,7 @@ def get_db():
     global _cliente
     if _cliente is None:
         uri = os.environ.get('MONGO_URI', 'mongodb://localhost:27017')
-        _cliente = MongoClient(uri)
+        _cliente = MongoClient(uri, tz_aware=True, serverSelectionTimeoutMS=5000)
     nombre = os.environ.get('MONGO_DB', 'tr_adopciones')
     return _cliente[nombre]
 
@@ -31,3 +32,12 @@ def publicaciones():
 
 def notificaciones():
     return get_db()['notificaciones']       # avisos al vecino (HU-06)
+
+
+def contadores():
+    return get_db()['contadores']
+
+
+def bucket_seguimientos():
+    """Almacen de archivos (GridFS) para las evidencias de seguimiento (HU-08)."""
+    return gridfs.GridFSBucket(get_db(), bucket_name='seguimientos')

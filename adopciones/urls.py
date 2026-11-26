@@ -4,7 +4,7 @@ CONVENCIÓN DE EQUIPO: cada integrante trabaja en SU archivo de módulo (modulos
 y agrega UNA sola línea aquí abajo. Este es el único archivo compartido.
 """
 from django.urls import path
-from . import views
+from . import views, views_postulaciones, views_seguimientos
 from .modulos_indiv import hu_christopher, hu_eric, hu_alexis
 
 urlpatterns = [
@@ -24,6 +24,12 @@ urlpatterns = [
     path('postulaciones', hu_alexis.postulaciones),
     path('postulaciones/<str:postulacion_id>', hu_alexis.detalle_postulacion),
     path('postulaciones/<str:postulacion_id>/estado', hu_alexis.cambiar_estado),
+
+    # --- HU-08 Seguimiento posterior (Sebastián) ---
+    path('postulaciones/<str:postulacion_id>/seguimientos',
+         views_seguimientos.seguimientos),
+    path('postulaciones/<str:postulacion_id>/seguimientos/<str:control_id>/archivo',
+         views_seguimientos.descargar_archivo),
 
     # --- Cada integrante agrega su línea aquí ---
     # path('postulaciones/<pid>/estado', evaluacion.cambiar_estado), # HU-11  Eric

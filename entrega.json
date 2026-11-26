@@ -2,7 +2,7 @@
   "seccion": "FB50-C1",
   "modulo": 3,
   "grupo": "G03",
-  "prototipo": "https://adopciones-tr-onrender-com.onrender.com",
+  "prototipo": "https://PENDIENTE-cambiar-al-desplegar.onrender.com",
   "repositorio": "https://github.com/KuroMint0/ES3-M3-Ingenieria-Software",
   "taiga": "https://tree.taiga.io/project/kuromint-ti3043-fb50c1-m3",
   "integrantes": [
@@ -15,19 +15,28 @@
     {
       "id": "HU-01",
       "titulo": "Postular a la adopción de un animal",
-      "responsable": "Sebastian Ortega",
+      "responsable": "SebastianOrtegaV",
       "verificacion": {
         "metodo": "POST",
         "ruta": "/api/adopciones/postulaciones",
         "perfil": "vecino",
-        "cuerpo": { "animalId": "SIM-000001" },
+        "cuerpo": {
+          "animalId": "SIM-000002",
+          "formulario": {
+            "tipoVivienda": "casa",
+            "patioExterior": true,
+            "otrosAnimales": false,
+            "presenciaNinos": true,
+            "consentimientoFamiliar": true
+          }
+        },
         "esperado": 201
       }
     },
     {
       "id": "HU-04",
       "titulo": "Publicar un animal para adopción",
-      "responsable": "Christopher Cortés",
+      "responsable": "crimaxi",
       "verificacion": {
         "metodo": "POST",
         "ruta": "/api/adopciones/publicaciones",
@@ -39,7 +48,7 @@
     {
       "id": "HU-11",
       "titulo": "Aprobar adopción y actualizar el tutor en el Módulo 1",
-      "responsable": "Eric Torrejón",
+      "responsable": "nnnnagato",
       "verificacion": {
         "metodo": "PATCH",
         "ruta": "/api/adopciones/postulaciones/P-DEMO-0001/estado",
@@ -51,12 +60,12 @@
     {
       "id": "HU-08",
       "titulo": "Registrar seguimiento posterior a la adopción",
-      "responsable": "Alexis Sepúlveda",
+      "responsable": "KuroMint0",
       "verificacion": {
         "metodo": "POST",
         "ruta": "/api/adopciones/postulaciones/P-DEMO-0002/seguimientos",
         "perfil": "funcionario",
-        "cuerpo": { "nota": "Primera visita de control: animal en buen estado" },
+        "cuerpo": { "observaciones": "Primera visita de control: animal en buen estado" },
         "esperado": 201
       }
     }

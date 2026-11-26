@@ -49,6 +49,10 @@
     .animal-card dd { margin: 0; overflow-wrap: anywhere; }
     .panel-detalle { margin-top: 1rem; background: #f8fbfb; border-color: #9aabad; }
     .panel-alerta { margin-top: 1rem; background: #fff8e6; border-color: #e0a800; }
+    [hidden] { display: none !important; }
+    .secundario { background: #eef3f5; color: #0f5d6b; border: 1px solid #0f5d6b; padding: .25rem .6rem; font-size: .85rem; }
+    .seguimiento-lista { padding-left: 1.25rem; }
+    .seguimiento-lista li { margin-bottom: .75rem; }
   </style>
 </head>
 <body>
@@ -62,6 +66,12 @@
         <input id="clave" name="clave" type="password" placeholder="Clave" value="tenencia2026" autocomplete="current-password" required>
       </div>
       <button id="loginButton" type="submit">Entrar</button>
+      <button type="button" id="btnSalir" class="secundario" onclick="cerrarSesion()" hidden>Cerrar sesión</button>
+      <span class="help">Probar como:
+        <button type="button" class="secundario" onclick="usarPrueba('11111111-1')">vecino</button>
+        <button type="button" class="secundario" onclick="usarPrueba('9876543-3')">vecino con prohibición</button>
+        <button type="button" class="secundario" onclick="usarPrueba('17777777-3')">funcionario</button>
+      </span>
     </form>
     <p id="estadoSesion" class="status" role="status" aria-live="polite"></p>
   </fieldset>
@@ -107,6 +117,55 @@
       <button id="postularButton" type="submit">Postular</button>
     </form>
     <p id="estadoPostulacion" class="status" role="status" aria-live="polite"></p>
+  </fieldset>
+
+  <!-- HU-01 y HU-07: formulario validado por el servidor (Sebastián) -->
+  <fieldset id="postulacionHuPanel" hidden>
+    <legend>Postulación con formulario de adopción</legend>
+    <button type="button" onclick="cargarAnimales()">Ver animales para postular</button>
+    <p id="avisoPostular" class="status"></p>
+    <div id="listaAnimales" class="animal-grid"></div>
+    <form id="formPostulacion" hidden novalidate onsubmit="enviarPostulacion(event)">
+      <h3>Formulario de adopción - animal <span id="animalElegido"></span></h3>
+      <label>Tipo de vivienda
+        <select id="vivienda">
+          <option value="">Selecciona...</option>
+          <option value="casa">Casa</option>
+          <option value="departamento">Departamento</option>
+          <option value="parcela">Parcela</option>
+          <option value="otro">Otro</option>
+        </select>
+      </label>
+      <label class="check-label"><input type="checkbox" id="patio"> Tiene patio o espacio exterior</label>
+      <label class="check-label"><input type="checkbox" id="otrosAnimales"> Hay otros animales en el hogar</label>
+      <label class="check-label"><input type="checkbox" id="ninos"> Hay niños en el hogar</label>
+      <label class="check-label">
+        <input type="checkbox" id="consentimiento">
+        Todas las personas mayores de edad que viven conmigo consienten esta adopción
+      </label>
+      <button type="submit" id="btnEnviarPostulacion">Enviar postulación</button>
+      <button type="button" class="sec" onclick="cerrarFormulario()">Cancelar</button>
+    </form>
+  </fieldset>
+
+  <!-- HU-08: seguimiento posterior y descarga de evidencia -->
+  <fieldset id="seguimientoHuPanel" hidden>
+    <legend>Seguimiento posterior a la adopción</legend>
+    <label>Código de postulación
+      <input id="segPostulacion" placeholder="ej: P-000002">
+    </label>
+    <button type="button" onclick="cargarSeguimientos()">Ver controles</button>
+    <form id="formSeguimiento" novalidate onsubmit="enviarSeguimiento(event)">
+      <label>Observaciones
+        <input type="text" id="segObservaciones" maxlength="1000">
+      </label>
+      <label>Evidencia (PDF, JPG o PNG, opcional)
+        <input type="file" id="segArchivo" accept=".pdf,.jpg,.png">
+      </label>
+      <button type="submit" id="btnEnviarSeguimiento">Registrar control</button>
+    </form>
+    <p id="avisoSeguimiento" class="status"></p>
+    <ul id="listaSeguimientos" class="seguimiento-lista"></ul>
   </fieldset>
 
   <!-- Panel Funcionario: Evaluación de postulaciones (HU-09) y Devoluciones (HU-10 / HU-15) -->
@@ -166,6 +225,7 @@
 
     let token = null;
     let perfil = null;
+    const CLAVE_SESION = 'sesionAdopciones';
     let postulacionSeleccionada = null;
     let devolucionActiva = null;
 
@@ -211,10 +271,14 @@
     function actualizarPanelesPorPerfil() {
       const esFuncionario = perfil === 'funcionario';
       const esVecino = perfil === 'vecino';
+      const puedeVerSeguimientos = perfil === 'funcionario' || perfil === 'jefatura';
 
       publicarPanel.hidden = !esFuncionario;
       evaluarPanel.hidden = !esFuncionario;
       postularPanel.hidden = !esVecino;
+      document.getElementById('postulacionHuPanel').hidden = !esVecino;
+      document.getElementById('seguimientoHuPanel').hidden = !puedeVerSeguimientos;
+      document.getElementById('btnSalir').hidden = perfil === null;
 
       if (!esFuncionario) {
         detallePostulacionPanel.hidden = true;
@@ -241,13 +305,16 @@
         if (!response.ok || !data.token) {
           token = null;
           perfil = null;
+          sessionStorage.removeItem(CLAVE_SESION);
           actualizarPanelesPorPerfil();
           setStatus(loginStatus, `Error ${response.status}: ${errorMessage(data, 'No se pudo iniciar sesión')}`, 'err');
           return;
         }
 
         token = data.token;
-        perfil = data.perfil;
+        perfil = String(data.perfil || '').toLowerCase();
+        sessionStorage.setItem(CLAVE_SESION,
+          JSON.stringify({ token, perfil, nombre: data.nombre }));
         actualizarPanelesPorPerfil();
 
         const mensajeSesion = `Sesión iniciada: ${data.nombre} (${perfil})`;
@@ -269,6 +336,7 @@
       } catch {
         token = null;
         perfil = null;
+        sessionStorage.removeItem(CLAVE_SESION);
         actualizarPanelesPorPerfil();
         setStatus(loginStatus, 'No se pudo conectar con el núcleo. Intenta nuevamente.', 'err');
       } finally {
@@ -597,6 +665,220 @@
         setStatus(evaluarStatus, 'No se pudo conectar con el módulo de adopciones.', 'err');
       }
     });
+
+    function usarPrueba(rut) {
+      document.getElementById('rut').value = rut;
+    }
+
+    function cerrarSesion(mensaje) {
+      token = null;
+      perfil = null;
+      sessionStorage.removeItem(CLAVE_SESION);
+      actualizarPanelesPorPerfil();
+      setStatus(loginStatus, mensaje || 'Sesión cerrada.', mensaje ? 'err' : 'ok');
+      document.getElementById('listaAnimales').replaceChildren();
+      document.getElementById('listaSeguimientos').replaceChildren();
+    }
+
+    function restaurarSesion() {
+      try {
+        const guardada = JSON.parse(sessionStorage.getItem(CLAVE_SESION) || 'null');
+        if (guardada?.token && guardada?.perfil) {
+          token = guardada.token;
+          perfil = String(guardada.perfil).toLowerCase();
+          actualizarPanelesPorPerfil();
+          setStatus(loginStatus,
+            `Sesión iniciada: ${guardada.nombre || 'usuario'} (${perfil})`, 'ok');
+        }
+      } catch {
+        sessionStorage.removeItem(CLAVE_SESION);
+      }
+    }
+
+    function mostrar(id, texto, esError) {
+      setStatus(document.getElementById(id), texto, esError ? 'err' : 'ok');
+    }
+
+    async function llamarApi(metodo, ruta, cuerpo) {
+      const opciones = {
+        method: metodo,
+        headers: headersConToken(),
+      };
+      if (cuerpo instanceof FormData) {
+        opciones.body = cuerpo;
+      } else if (cuerpo !== undefined) {
+        opciones.headers['Content-Type'] = 'application/json';
+        opciones.body = JSON.stringify(cuerpo);
+      }
+      const respuesta = await fetch(`${API}/api/adopciones${ruta}`, opciones);
+      let datos = {};
+      try { datos = await respuesta.json(); } catch {}
+      if (respuesta.status === 401) cerrarSesion('Tu sesión expiró. Inicia sesión de nuevo.');
+      return { ok: respuesta.ok, status: respuesta.status, datos };
+    }
+
+    function textoError(resultado) {
+      return resultado.datos.error?.mensaje || `No se pudo completar la operación (${resultado.status}).`;
+    }
+
+    async function cargarAnimales() {
+      const resultado = await llamarApi('GET', '/disponibles?page=1&limit=20');
+      if (!resultado.ok) {
+        mostrar('avisoPostular', textoError(resultado), true);
+        return;
+      }
+      const contenedor = document.getElementById('listaAnimales');
+      contenedor.replaceChildren();
+      const animales = resultado.datos.datos || [];
+      if (!animales.length) {
+        mostrar('avisoPostular', 'No hay animales disponibles.', false);
+        return;
+      }
+      mostrar('avisoPostular', '', false);
+      for (const animal of animales) {
+        const card = document.createElement('article');
+        card.className = 'animal-card';
+        const titulo = document.createElement('h3');
+        titulo.textContent = animal.animalId;
+        const boton = document.createElement('button');
+        boton.type = 'button';
+        boton.textContent = 'Postular';
+        boton.onclick = () => abrirFormulario(animal.animalId);
+        card.append(titulo, boton);
+        contenedor.appendChild(card);
+      }
+    }
+
+    function abrirFormulario(animalId) {
+      document.getElementById('animalElegido').textContent = animalId;
+      document.getElementById('formPostulacion').dataset.animalId = animalId;
+      document.getElementById('formPostulacion').hidden = false;
+    }
+
+    function cerrarFormulario() {
+      document.getElementById('formPostulacion').hidden = true;
+      document.getElementById('formPostulacion').reset();
+    }
+
+    async function enviarPostulacion(evento) {
+      evento.preventDefault();
+      const formulario = document.getElementById('formPostulacion');
+      const vivienda = document.getElementById('vivienda').value;
+      if (!vivienda) {
+        mostrar('avisoPostular', 'Selecciona el tipo de vivienda.', true);
+        return;
+      }
+      const cuerpo = {
+        animalId: formulario.dataset.animalId,
+        formulario: {
+          tipoVivienda: vivienda,
+          patioExterior: document.getElementById('patio').checked,
+          otrosAnimales: document.getElementById('otrosAnimales').checked,
+          presenciaNinos: document.getElementById('ninos').checked,
+          consentimientoFamiliar: document.getElementById('consentimiento').checked,
+        },
+      };
+      try {
+        const resultado = await llamarApi('POST', '/postulaciones', cuerpo);
+        if (!resultado.ok) {
+          mostrar('avisoPostular', textoError(resultado), true);
+          return;
+        }
+        mostrar('avisoPostular',
+          `Postulación recibida. Código: ${resultado.datos.postulacionId}`, false);
+        cerrarFormulario();
+      } catch {
+        mostrar('avisoPostular', 'No se pudo conectar con el servidor.', true);
+      }
+    }
+
+    function rutaSeguimientos(id) {
+      return `/postulaciones/${encodeURIComponent(id)}/seguimientos`;
+    }
+
+    function codigoSeguimiento() {
+      return document.getElementById('segPostulacion').value.trim();
+    }
+
+    async function cargarSeguimientos() {
+      const id = codigoSeguimiento();
+      if (!id) {
+        mostrar('avisoSeguimiento', 'Escribe el código de la postulación.', true);
+        return;
+      }
+      const resultado = await llamarApi('GET', rutaSeguimientos(id));
+      if (!resultado.ok) {
+        mostrar('avisoSeguimiento', textoError(resultado), true);
+        return;
+      }
+      mostrar('avisoSeguimiento', '', false);
+      const lista = document.getElementById('listaSeguimientos');
+      lista.replaceChildren();
+      for (const control of resultado.datos.datos || []) {
+        const item = document.createElement('li');
+        item.textContent = `${control.controlId}: ${control.observaciones}`;
+        if (control.archivo) {
+          const boton = document.createElement('button');
+          boton.type = 'button';
+          boton.textContent = 'Descargar evidencia';
+          boton.onclick = () => descargarEvidencia(id, control.controlId);
+          item.appendChild(boton);
+        }
+        lista.appendChild(item);
+      }
+    }
+
+    async function enviarSeguimiento(evento) {
+      evento.preventDefault();
+      const id = codigoSeguimiento();
+      if (!id) {
+        mostrar('avisoSeguimiento', 'Escribe el código de la postulación.', true);
+        return;
+      }
+      const observaciones = document.getElementById('segObservaciones').value.trim();
+      const archivo = document.getElementById('segArchivo').files[0];
+      let cuerpo;
+      let resultado;
+      try {
+        if (archivo) {
+          cuerpo = new FormData();
+          cuerpo.append('observaciones', observaciones);
+          cuerpo.append('archivo', archivo);
+        } else {
+          cuerpo = { observaciones };
+        }
+        resultado = await llamarApi('POST', rutaSeguimientos(id), cuerpo);
+      } catch {
+        mostrar('avisoSeguimiento', 'No se pudo conectar con el servidor.', true);
+        return;
+      }
+      if (!resultado.ok) {
+        mostrar('avisoSeguimiento', textoError(resultado), true);
+        return;
+      }
+      document.getElementById('segObservaciones').value = '';
+      document.getElementById('segArchivo').value = '';
+      await cargarSeguimientos();
+      mostrar('avisoSeguimiento', 'Control registrado.', false);
+    }
+
+    async function descargarEvidencia(postulacionId, controlId) {
+      const respuesta = await fetch(
+        `${API}/api/adopciones${rutaSeguimientos(postulacionId)}/${encodeURIComponent(controlId)}/archivo`,
+        { headers: headersConToken() });
+      if (!respuesta.ok) {
+        mostrar('avisoSeguimiento', `No se pudo descargar el archivo (${respuesta.status}).`, true);
+        return;
+      }
+      const blob = await respuesta.blob();
+      const enlace = document.createElement('a');
+      enlace.href = URL.createObjectURL(blob);
+      enlace.download = `evidencia-${controlId}`;
+      enlace.click();
+      URL.revokeObjectURL(enlace.href);
+    }
+
+    restaurarSesion();
 
     // Catálogo de animales disponibles
     document.getElementById('recargarButton').addEventListener('click', cargarDisponibles);

@@ -11,6 +11,8 @@ La URL del núcleo viene de la variable de entorno NUCLEO_URL.
 Para pasar del M1 simulado al M1 real (ES4) basta cambiar esa URL: nada más.
 """
 import os
+from urllib.parse import quote
+
 import requests
 
 NUCLEO_URL = os.environ.get('NUCLEO_URL', 'https://nucleo-tr.onrender.com')
@@ -39,19 +41,19 @@ def validar_sesion(token):
 
 def obtener_usuario(rut, token):
     """GET /api/nucleo/usuarios/{rut} -> prohibición de tenencia, perfil, nombre."""
-    return _get(f'/api/nucleo/usuarios/{rut}', token)
+    return _get(f'/api/nucleo/usuarios/{quote(rut, safe="")}', token)
 
 
 def obtener_animal(animal_id, token):
     """GET /api/registro/animales/{id} (M1 simulado) -> estado, microchip, tutorRut..."""
-    return _get(f'/api/registro/animales/{animal_id}', token)
+    return _get(f'/api/registro/animales/{quote(animal_id, safe="")}', token)
 
 
 def actualizar_tutor(animal_id, tutor_rut, token):
     """PATCH /api/registro/animales/{id}/tutor (M1 simulado). Lo usa HU-11."""
     try:
         return requests.patch(
-            f'{NUCLEO_URL}/api/registro/animales/{animal_id}/tutor',
+            f'{NUCLEO_URL}/api/registro/animales/{quote(animal_id, safe="")}/tutor',
             headers={'Authorization': f'Bearer {token}'},
             json={'tutorRut': tutor_rut},
             timeout=TIMEOUT,

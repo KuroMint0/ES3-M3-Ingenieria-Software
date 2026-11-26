@@ -295,6 +295,12 @@ def postulaciones(request):
     if perfil != 'vecino':
         return error(403, 'PERFIL_NO_AUTORIZADO', 'Se requiere perfil: vecino')
 
+    # HU-01/HU-07: delegar al validador propio de esta funcionalidad.
+    # Se mantiene HU-09/HU-12 y el resto de endpoints de este modulo.
+    from adopciones.views_postulaciones import crear_postulacion
+    return crear_postulacion(request)
+
+    # Compatibilidad mantenida solo como referencia del flujo anterior.
     rut = request.usuario.get('rut')
     animal_id = (request.data.get('animalId') or '').strip()
     if not animal_id:

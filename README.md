@@ -63,7 +63,16 @@ prueba el botón **GET /api/adopciones/disponibles**.
 | `GET /api/adopciones/salud` | público | — |
 | `GET /api/adopciones/disponibles` | con token | lista de animales publicados |
 | `POST /api/adopciones/publicaciones` | funcionario | HU-04/HU-13: publicar animal con microchip |
-| *(se irán agregando las historias de cada integrante)* | | |
+| `POST /api/adopciones/postulaciones` | vecino | HU-01/HU-07: crear postulación |
+| `GET /api/adopciones/postulaciones/{id}/seguimientos` | funcionario, jefatura | HU-08: listar controles |
+| `POST /api/adopciones/postulaciones/{id}/seguimientos` | funcionario | HU-08: registrar control |
+| `GET /api/adopciones/postulaciones/{id}/seguimientos/{controlId}/archivo` | funcionario, jefatura | HU-08: descargar evidencia |
+
+Para dejar los datos de demostración listos para las verificaciones:
+
+```bash
+python manage.py sembrar_demo
+```
 
 Convenciones: rutas en plural, respuestas JSON, errores `{"error":{"codigo","mensaje"}}`,
 listados `?page=1&limit=20`, fechas ISO 8601 UTC, `404` para lo que no existe,
