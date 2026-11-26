@@ -119,10 +119,6 @@
       <label class="check-label"><input id="postPatio" type="checkbox"> Cuenta con patio o espacio exterior</label>
       <label class="check-label"><input id="postOtros" type="checkbox"> Hay otros animales en el hogar</label>
       <label class="check-label"><input id="postNinos" type="checkbox"> Presencia de niños en el hogar</label>
-      <div>
-        <label for="postObs">Observaciones</label>
-        <input id="postObs" name="postObs" type="text" placeholder="Información adicional del hogar...">
-      </div>
       <label class="check-label"><input id="postConsentimiento" type="checkbox" checked> Consentimiento explícito de cohabitantes mayores de edad (Ley 21.719)</label>
       <button id="postularButton" type="submit">Postular</button>
     </form>
@@ -421,12 +417,11 @@
       const payload = {
         animalId,
         formulario: {
-          tipoVivienda: document.getElementById('postVivienda').value,
+          tipoVivienda: document.getElementById('postVivienda').value.toLowerCase(),
           patioExterior: document.getElementById('postPatio').checked,
           otrosAnimales: document.getElementById('postOtros').checked,
-          presenciaNiños: document.getElementById('postNinos').checked,
-          observaciones: document.getElementById('postObs').value.trim(),
-          consentimientoLey21719: document.getElementById('postConsentimiento').checked
+          presenciaNinos: document.getElementById('postNinos').checked,
+          consentimientoFamiliar: document.getElementById('postConsentimiento').checked
         }
       };
 
@@ -560,11 +555,8 @@
         agregarDetalle(dl, 'Tipo de vivienda', valorAnimal(f, 'tipoVivienda'));
         agregarDetalle(dl, 'Patio exterior', f.patioExterior ? 'Sí' : 'No');
         agregarDetalle(dl, 'Otros animales', f.otrosAnimales ? 'Sí' : 'No');
-        agregarDetalle(dl, 'Presencia de niños', f.presenciaNiños ? 'Sí' : 'No');
-        agregarDetalle(dl, 'Consentimiento Ley 21.719', f.consentimientoLey21719 ? 'Aceptado' : 'No');
-        if (f.observaciones) {
-          agregarDetalle(dl, 'Observaciones', f.observaciones);
-        }
+        agregarDetalle(dl, 'Presencia de niños', f.presenciaNinos ? 'Sí' : 'No');
+        agregarDetalle(dl, 'Consentimiento Ley 21.719', f.consentimientoFamiliar ? 'Aceptado' : 'No');
 
         const select = document.getElementById('selectEstadoPost');
         select.replaceChildren();
