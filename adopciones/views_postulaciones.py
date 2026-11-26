@@ -9,13 +9,11 @@ guardada una postulación sin los datos legales (RF-04, Ley 21.719).
 from datetime import datetime, timezone
 
 from pymongo.errors import DuplicateKeyError
-from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from . import db, estados, nucleo
 from . import repositorio_postulaciones as repo
 from .respuestas import error
-from .seguridad import requiere_perfil
 from .validadores import (
     PostulacionSerializer,
     campos_no_permitidos_postulacion,
@@ -35,8 +33,6 @@ def _json(respuesta):
         return None
 
 
-@api_view(['POST'])
-@requiere_perfil('vecino')          # pasos 1 y 2: 401 sin token, 403 si no es vecino
 def crear_postulacion(request):
     # --- Paso 3: validar el cuerpo ANTES de usarlo en cualquier otra cosa ------
     datos = request.data            # JSON roto -> ParseError -> 400 (manejador_excepciones)
