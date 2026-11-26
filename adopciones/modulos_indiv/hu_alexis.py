@@ -90,7 +90,7 @@ def validar_antecedentes_postulante(rut, token):
 
     # Validar la cantidad de animales a cargo actuales (no cuenta comunitarios)
     cant_animales = calcular_animales_tutor(rut, tutor)
-    if cant_animales >= MAX_ANIMALES_POR_TUTOR:
+    if cant_animales > MAX_ANIMALES_POR_TUTOR:
         codigos.append('max_animales')
         motivos.append(f'El postulante tiene a cargo {cant_animales} animales, superando el máximo permitido de {MAX_ANIMALES_POR_TUTOR}.')
 
