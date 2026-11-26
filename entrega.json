@@ -11,7 +11,7 @@
     { "nombre": "Eric Torrejón",      "github": "nnnnagato",        "taiga": "EricTorrejon", "rol": "Arquitecto" },
     { "nombre": "Sebastián Ortega",   "github": "SebastianOrtegaV", "taiga": "zbA",          "rol": "Product Owner" }
   ],
-  "historias": [
+"historias": [
     {
       "id": "HU-01",
       "titulo": "Postular a la adopción de un animal",
@@ -34,6 +34,38 @@
       }
     },
     {
+      "id": "HU-02",
+      "titulo": "Conocer el estado de mis postulaciones",
+      "responsable": "KuroMint0",
+      "verificacion": {
+        "metodo": "GET",
+        "ruta": "/api/adopciones/postulaciones/P-DEMO-0002",
+        "perfil": "vecino",
+        "esperado": 200
+      }
+    },
+    {
+      "id": "HU-03",
+      "titulo": "Mantener hasta dos postulaciones activas al mismo tiempo",
+      "responsable": "SebastianOrtegaV",
+      "verificacion": {
+        "metodo": "POST",
+        "ruta": "/api/adopciones/postulaciones",
+        "perfil": "vecino",
+        "cuerpo": {
+          "animalId": "SIM-000004",
+          "formulario": {
+            "tipoVivienda": "departamento",
+            "patioExterior": false,
+            "otrosAnimales": false,
+            "presenciaNinos": false,
+            "consentimientoFamiliar": true
+          }
+        },
+        "esperado": 201
+      }
+    },
+    {
       "id": "HU-04",
       "titulo": "Publicar un animal para adopción",
       "responsable": "crimaxi",
@@ -43,6 +75,94 @@
         "perfil": "funcionario",
         "cuerpo": { "animalId": "SIM-000001" },
         "esperado": 201
+      }
+    },
+    {
+      "id": "HU-05",
+      "titulo": "Postular a un animal aunque ya tenga postulantes",
+      "responsable": "SebastianOrtegaV",
+      "verificacion": {
+        "metodo": "POST",
+        "ruta": "/api/adopciones/postulaciones",
+        "perfil": "vecino",
+        "cuerpo": {
+          "animalId": "SIM-000001",
+          "formulario": {
+            "tipoVivienda": "casa",
+            "patioExterior": true,
+            "otrosAnimales": false,
+            "presenciaNinos": false,
+            "consentimientoFamiliar": true
+          }
+        },
+        "esperado": 201
+      }
+    },
+    {
+      "id": "HU-06",
+      "titulo": "Avisar al vecino cuando una postulación sea cancelada",
+      "responsable": "nnnnagato",
+      "verificacion": {
+        "metodo": "GET",
+        "ruta": "/api/adopciones/notificaciones",
+        "perfil": "vecino",
+        "esperado": 200
+      }
+    },
+    {
+      "id": "HU-07",
+      "titulo": "Completar formulario de adopción con datos de vivienda y consentimiento familiar",
+      "responsable": "SebastianOrtegaV",
+      "verificacion": {
+        "metodo": "POST",
+        "ruta": "/api/adopciones/postulaciones",
+        "perfil": "vecino",
+        "cuerpo": {
+          "animalId": "SIM-000002",
+          "formulario": {
+            "tipoVivienda": "casa",
+            "patioExterior": true,
+            "otrosAnimales": false,
+            "presenciaNinos": false,
+            "consentimientoFamiliar": false
+          }
+        },
+        "esperado": 400
+      }
+    },
+    {
+      "id": "HU-08",
+      "titulo": "Registrar seguimiento posterior a la adopción",
+      "responsable": "KuroMint0",
+      "verificacion": {
+        "metodo": "POST",
+        "ruta": "/api/adopciones/postulaciones/P-DEMO-0002/seguimientos",
+        "perfil": "funcionario",
+        "cuerpo": { "observaciones": "Primera visita de control: animal en buen estado" },
+        "esperado": 201
+      }
+    },
+    {
+      "id": "HU-09",
+      "titulo": "Evaluar postulaciones recibidas",
+      "responsable": "KuroMint0",
+      "verificacion": {
+        "metodo": "GET",
+        "ruta": "/api/adopciones/postulaciones",
+        "perfil": "funcionario",
+        "esperado": 200
+      }
+    },
+    {
+      "id": "HU-10",
+      "titulo": "Registrar devolución de un animal para que vuelva a estar disponible",
+      "responsable": "KuroMint0",
+      "verificacion": {
+        "metodo": "PATCH",
+        "ruta": "/api/adopciones/postulaciones/P-DEMO-0002/estado",
+        "perfil": "funcionario",
+        "cuerpo": { "estado": "devuelto" },
+        "esperado": 200
       }
     },
     {
@@ -58,15 +178,76 @@
       }
     },
     {
-      "id": "HU-08",
-      "titulo": "Registrar seguimiento posterior a la adopción",
+      "id": "HU-12",
+      "titulo": "Bloquear automáticamente postulaciones por prohibición de tenencia o límite de animales",
       "responsable": "KuroMint0",
       "verificacion": {
         "metodo": "POST",
-        "ruta": "/api/adopciones/postulaciones/P-DEMO-0002/seguimientos",
+        "ruta": "/api/adopciones/postulaciones",
+        "perfil": "vecino",
+        "rut": "9876543-3",
+        "cuerpo": {
+          "animalId": "SIM-000002",
+          "formulario": {
+            "tipoVivienda": "casa",
+            "patioExterior": true,
+            "otrosAnimales": false,
+            "presenciaNinos": false,
+            "consentimientoFamiliar": true
+          }
+        },
+        "esperado": 409
+      }
+    },
+    {
+      "id": "HU-13",
+      "titulo": "Permitir publicar solo animales con estado con_microchip",
+      "responsable": "crimaxi",
+      "verificacion": {
+        "metodo": "POST",
+        "ruta": "/api/adopciones/publicaciones",
         "perfil": "funcionario",
-        "cuerpo": { "observaciones": "Primera visita de control: animal en buen estado" },
+        "cuerpo": { "animalId": "SIM-000001" },
         "esperado": 201
+      }
+    },
+    {
+      "id": "HU-14",
+      "titulo": "Cerrar adopción únicamente con al menos dos controles de seguimiento válidos",
+      "responsable": "SebastianOrtegaV",
+      "verificacion": {
+        "metodo": "PATCH",
+        "ruta": "/api/adopciones/postulaciones/P-DEMO-0002/estado",
+        "perfil": "funcionario",
+        "cuerpo": { "estado": "adopcion_cerrada" },
+        "esperado": 409
+      }
+    },
+    {
+      "id": "HU-15",
+      "titulo": "Exigir justificación obligatoria si la devolución ocurre después de 30 días",
+      "responsable": "KuroMint0",
+      "verificacion": {
+        "metodo": "PATCH",
+        "ruta": "/api/adopciones/postulaciones/P-DEMO-0002/estado",
+        "perfil": "funcionario",
+        "cuerpo": {
+          "estado": "devuelto",
+          "justificacion_devolucion": "Incompatibilidad de convivencia tras periodo de adaptación."
+        },
+        "esperado": 200
+      }
+    },
+    {
+      "id": "HU-16",
+      "titulo": "Cerrar automáticamente la recepción de nuevas postulaciones al aprobar una adopción",
+      "responsable": "KuroMint0",
+      "verificacion": {
+        "metodo": "PATCH",
+        "ruta": "/api/adopciones/postulaciones/P-DEMO-0001/estado",
+        "perfil": "funcionario",
+        "cuerpo": { "estado": "aprobada" },
+        "esperado": 200
       }
     }
   ]
