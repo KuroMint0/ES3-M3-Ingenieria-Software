@@ -23,8 +23,8 @@
     }
     legend { color: #0f5d6b; font-weight: 700; padding: 0 .4rem; }
     label { display: block; font-weight: 600; margin-bottom: .4rem; }
-    input, select, button { border-radius: 6px; font: inherit; padding: .6rem .8rem; }
-    input, select { border: 1px solid #9aabad; max-width: 100%; background: #fff; }
+    input, select, textarea, button { border-radius: 6px; font: inherit; padding: .6rem .8rem; }
+    input, select, textarea { border: 1px solid #9aabad; max-width: 100%; background: #fff; }
     button {
       background: #0f5d6b;
       border: 0;
@@ -44,6 +44,7 @@
     .animal-card { margin: 0; }
     .animal-card h3 { color: #0f5d6b; margin: 0 0 .35rem; }
     .animal-card p { margin: .35rem 0; overflow-wrap: anywhere; }
+    .animal-card img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 6px; margin: .5rem 0; }
     .animal-card dl { display: grid; grid-template-columns: auto 1fr; gap: .35rem .7rem; }
     .animal-card dt { font-weight: 600; }
     .animal-card dd { margin: 0; overflow-wrap: anywhere; }
@@ -83,6 +84,14 @@
       <div>
         <label for="animalId">Identificador del animal</label>
         <input id="animalId" name="animalId" type="text" placeholder="SIM-000001" autocomplete="off" required>
+      </div>
+      <div>
+        <label for="descripcionAnimal">Descripción (opcional)</label>
+        <textarea id="descripcionAnimal" name="descripcion" rows="3" maxlength="1000"></textarea>
+      </div>
+      <div>
+        <label for="fotografiaAnimal">Fotografía (URL opcional)</label>
+        <input id="fotografiaAnimal" name="fotografia" type="url" placeholder="https://ejemplo.cl/animal.jpg" autocomplete="url">
       </div>
       <button id="publicarButton" type="submit">Publicar animal</button>
     </form>
@@ -367,7 +376,11 @@
             ...headersConToken(),
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ animalId })
+          body: JSON.stringify({
+            animalId,
+            descripcion: document.getElementById('descripcionAnimal').value.trim(),
+            fotografia: document.getElementById('fotografiaAnimal').value.trim()
+          })
         });
         const data = await readJson(response);
         if (!response.ok) {
@@ -890,6 +903,16 @@
         : String(valor);
     }
 
+    function urlFotografiaSegura(valor) {
+      if (typeof valor !== 'string' || !valor.trim()) return null;
+      try {
+        const url = new URL(valor.trim(), window.location.origin);
+        return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : null;
+      } catch {
+        return null;
+      }
+    }
+
     function agregarDetalle(lista, etiqueta, valor) {
       const termino = document.createElement('dt');
       termino.textContent = etiqueta;
@@ -915,6 +938,21 @@
         id.className = 'muted';
         id.textContent = valorAnimal(animal, 'animalId');
         const details = document.createElement('dl');
+        const fotografia = urlFotografiaSegura(animal.fotografia);
+        if (fotografia) {
+          const imagen = document.createElement('img');
+          imagen.src = fotografia;
+          imagen.alt = `Fotografía de ${valorAnimal(animal, 'nombre')}`;
+          imagen.loading = 'lazy';
+          imagen.referrerPolicy = 'no-referrer';
+          imagen.addEventListener('error', () => imagen.remove(), { once: true });
+          card.appendChild(imagen);
+        }
+        if (typeof animal.descripcion === 'string' && animal.descripcion.trim()) {
+          const descripcion = document.createElement('p');
+          descripcion.textContent = animal.descripcion;
+          card.appendChild(descripcion);
+        }
         agregarDetalle(details, 'Especie', valorAnimal(animal, 'especie'));
         agregarDetalle(details, 'Raza', valorAnimal(animal, 'raza'));
         agregarDetalle(details, 'Edad aproximada', valorAnimal(animal, 'edadAproximada'));
@@ -956,6 +994,8 @@
         setStatus(disponiblesStatus, 'No se pudo conectar con el módulo de adopciones.', 'err');
       }
     }
+
+    cargarDisponibles();
   </script>
 </body>
 </html>

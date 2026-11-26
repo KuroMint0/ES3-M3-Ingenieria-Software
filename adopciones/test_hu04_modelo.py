@@ -54,6 +54,27 @@ class ModeloPublicacionAnimalTests(SimpleTestCase):
             format='json',
         )
 
+    def test_publicar_requiere_token(self):
+        self.client.credentials()
+
+        respuesta = self.publicar({'animalId': 'SIM-000001'})
+
+        self.assertEqual(respuesta.status_code, 401)
+        self.obtener_animal_mock.assert_not_called()
+
+    def test_publicar_requiere_perfil_funcionario(self):
+        with patch(
+            'adopciones.seguridad.nucleo.validar_sesion',
+            return_value=SimpleNamespace(
+                status_code=200,
+                json=lambda: {'rut': '11111111-1', 'perfil': 'vecino'},
+            ),
+        ):
+            respuesta = self.publicar({'animalId': 'SIM-000001'})
+
+        self.assertEqual(respuesta.status_code, 403)
+        self.obtener_animal_mock.assert_not_called()
+
     def test_crea_documento_con_campos_opcionales_vacios(self):
         respuesta = self.publicar({'animalId': 'SIM-000001'})
 
@@ -88,3 +109,23 @@ class ModeloPublicacionAnimalTests(SimpleTestCase):
         self.assertEqual(respuesta.status_code, 400)
         self.obtener_animal_mock.assert_not_called()
         self.publicaciones.insert_one.assert_not_called()
+
+
+class CatalogoAnimalPublicoTests(SimpleTestCase):
+    def test_lista_disponibles_sin_token(self):
+        publicaciones = Mock()
+        publicaciones.find.return_value = [{
+            'animalId': 'SIM-000001',
+            'nombre': 'Cholito',
+            'estado': 'disponible',
+        }]
+
+        with patch(
+            'adopciones.views.db.publicaciones',
+            return_value=publicaciones,
+        ):
+            respuesta = APIClient().get('/api/adopciones/disponibles')
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(respuesta.data['total'], 1)
+        self.assertEqual(respuesta.data['datos'][0]['animalId'], 'SIM-000001')

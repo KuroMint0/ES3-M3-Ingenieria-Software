@@ -14,7 +14,6 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from . import db
-from .seguridad import requiere_token
 from .respuestas import paginar
 
 
@@ -31,12 +30,10 @@ def salud(request):
 
 
 @api_view(['GET'])
-@requiere_token
 def disponibles(request):
     """
     GET /api/adopciones/disponibles
-    Lista paginada de animales publicados para adopción. Requiere token (cualquier perfil).
-    Endpoint de referencia: demuestra token + lectura en Mongo + paginación + JSON.
+    Lista paginada pública de animales publicados para adopción.
     """
     docs = list(db.publicaciones().find({'estado': 'disponible'}, {'_id': 0}))
     return Response(paginar(docs, request))
