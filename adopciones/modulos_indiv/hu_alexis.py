@@ -114,7 +114,7 @@ def validar_antecedentes_postulante(rut, token):
     cant_animales = calcular_animales_tutor(rut, tutor)
     if cant_animales >= MAX_ANIMALES_POR_TUTOR:
         codigos.append('max_animales')
-        motivos.append(f'El postulante tiene a cargo {cant_animales} animales, supenrando el máximo permitido de {MAX_ANIMALES_POR_TUTOR}.')
+        motivos.append(f'El postulante tiene a cargo {cant_animales} animales, superando el máximo permitido de {MAX_ANIMALES_POR_TUTOR}.')
 
     if motivos:
         codigo_principal = codigos[0] if len(codigos) == 1 else 'postulacion_bloqueada_multiple'
