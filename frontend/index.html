@@ -49,6 +49,15 @@
     .animal-card dl { display: grid; grid-template-columns: auto 1fr; gap: .35rem .7rem; }
     .animal-card dt { font-weight: 600; }
     .animal-card dd { margin: 0; overflow-wrap: anywhere; }
+    .estado-badge { display: inline-block; border-radius: 999px; font-size: .85rem; font-weight: 700; padding: .2rem .65rem; }
+    .estado-recibida { background: #fff3cd; color: #765600; }
+    .estado-en-evaluacion { background: #dceeff; color: #124c7a; }
+    .estado-aprobada { background: #dff3e4; color: #216b35; }
+    .estado-rechazada { background: #fbe1e1; color: #a32121; }
+    .estado-adopcion { background: #d9f0ed; color: #075e55; }
+    .estado-devuelto { background: #ffe8d2; color: #8a4300; }
+    .estado-cancelada { background: #e8ecef; color: #46545c; }
+    .estado-desconocido { background: #ece7f5; color: #493c63; }
     .panel-detalle { margin-top: 1rem; background: #f8fbfb; border-color: #9aabad; }
     .panel-alerta { margin-top: 1rem; background: #fff8e6; border-color: #e0a800; }
     [hidden] { display: none !important; }
@@ -154,6 +163,18 @@
     </form>
   </fieldset>
 
+  <fieldset id="misPostulacionesPanel" hidden>
+    <legend>Mis Postulaciones</legend>
+    <div class="login-fields">
+      <button id="refrescarMisPostulaciones" type="button">Actualizar</button>
+      <button id="anteriorMisPostulaciones" type="button" class="sec" disabled>Anterior</button>
+      <span id="paginaMisPostulaciones" class="muted">Página 1 de 1</span>
+      <button id="siguienteMisPostulaciones" type="button" class="sec" disabled>Siguiente</button>
+    </div>
+    <p id="estadoMisPostulaciones" class="status" role="status" aria-live="polite"></p>
+    <div id="misPostulacionesCards" class="animal-grid"></div>
+  </fieldset>
+
   <!-- HU-08: seguimiento posterior y descarga de evidencia -->
   <fieldset id="seguimientoHuPanel" hidden>
     <legend>Seguimiento posterior a la adopción</legend>
@@ -234,12 +255,28 @@
       'adopcion_cerrada',
       'devuelto'
     ];
+    const ETIQUETAS_ESTADO_POSTULACION = {
+      recibida: { texto: 'Pendiente', clase: 'estado-recibida' },
+      en_evaluacion: { texto: 'En revisión', clase: 'estado-en-evaluacion' },
+      aprobada: { texto: 'Aprobada', clase: 'estado-aprobada' },
+      rechazada: { texto: 'Rechazada', clase: 'estado-rechazada' },
+      adopcion_concretada: { texto: 'Adopción concretada', clase: 'estado-adopcion' },
+      adopcion_cerrada: { texto: 'Adopción cerrada', clase: 'estado-adopcion' },
+      devuelto: { texto: 'Devuelta', clase: 'estado-devuelto' },
+      cancelada: { texto: 'Cancelada', clase: 'estado-cancelada' },
+      cancelada_por_adopcion_concretada: {
+        texto: 'Cancelada por adopción',
+        clase: 'estado-cancelada'
+      }
+    };
 
     let token = null;
     let perfil = null;
     const CLAVE_SESION = 'sesionAdopciones';
     let postulacionSeleccionada = null;
     let devolucionActiva = null;
+    let paginaMisPostulaciones = 1;
+    let totalPaginasMisPostulaciones = 1;
 
     const loginForm = document.getElementById('loginForm');
     const publicarForm = document.getElementById('publicarForm');
@@ -289,6 +326,7 @@
       evaluarPanel.hidden = !esFuncionario;
       postularPanel.hidden = !esVecino;
       document.getElementById('postulacionHuPanel').hidden = !esVecino;
+      document.getElementById('misPostulacionesPanel').hidden = !esVecino;
       document.getElementById('seguimientoHuPanel').hidden = !puedeVerSeguimientos;
       document.getElementById('cierreAdopcionPanel').hidden = !esFuncionario;
       document.getElementById('btnSalir').hidden = perfil === null;
@@ -297,6 +335,9 @@
         detallePostulacionPanel.hidden = true;
         devolucionPanel.hidden = true;
         listaPostulacionesCards.replaceChildren();
+      }
+      if (!esVecino) {
+        document.getElementById('misPostulacionesCards').replaceChildren();
       }
     }
 
@@ -344,6 +385,7 @@
         }
         if (perfil === 'vecino') {
           setStatus(postularStatus, '', '');
+          await cargarMisPostulaciones(1);
         }
         await cargarDisponibles();
       } catch {
@@ -453,6 +495,7 @@
         setStatus(postularStatus, `Postulación ${data.postulacionId} registrada en estado "${data.estado}".`, 'ok');
         postularForm.reset();
         document.getElementById('postConsentimiento').checked = true;
+        await cargarMisPostulaciones(1);
       } catch {
         setStatus(postularStatus, 'No se pudo conectar con el módulo de adopciones.', 'err');
       } finally {
@@ -702,6 +745,7 @@
           actualizarPanelesPorPerfil();
           setStatus(loginStatus,
             `Sesión iniciada: ${guardada.nombre || 'usuario'} (${perfil})`, 'ok');
+          if (perfil === 'vecino') cargarMisPostulaciones(1);
         }
       } catch {
         sessionStorage.removeItem(CLAVE_SESION);
@@ -733,6 +777,87 @@
     function textoError(resultado) {
       return resultado.datos.error?.mensaje || `No se pudo completar la operación (${resultado.status}).`;
     }
+
+    async function cargarMisPostulaciones(page = 1) {
+      const estado = document.getElementById('estadoMisPostulaciones');
+      const cards = document.getElementById('misPostulacionesCards');
+      if (!token || perfil !== 'vecino') {
+        setStatus(estado, 'Inicia sesión con perfil vecino para ver tus postulaciones.', 'err');
+        return;
+      }
+
+      setStatus(estado, 'Cargando tus postulaciones…', '');
+      try {
+        const resultado = await llamarApi(
+          'GET',
+          `/postulaciones?page=${encodeURIComponent(page)}&limit=10`
+        );
+        if (!resultado.ok) {
+          cards.replaceChildren();
+          setStatus(estado, textoError(resultado), 'err');
+          return;
+        }
+
+        const postulaciones = Array.isArray(resultado.datos.datos)
+          ? resultado.datos.datos
+          : [];
+        paginaMisPostulaciones = resultado.datos.page || page;
+        totalPaginasMisPostulaciones = resultado.datos.totalPaginas || 1;
+        document.getElementById('paginaMisPostulaciones').textContent =
+          `Página ${paginaMisPostulaciones} de ${totalPaginasMisPostulaciones}`;
+        document.getElementById('anteriorMisPostulaciones').disabled =
+          paginaMisPostulaciones <= 1;
+        document.getElementById('siguienteMisPostulaciones').disabled =
+          paginaMisPostulaciones >= totalPaginasMisPostulaciones;
+
+        cards.replaceChildren();
+        if (!postulaciones.length) {
+          setStatus(estado, 'Aún no tienes postulaciones.', '');
+          return;
+        }
+
+        for (const postulacion of postulaciones) {
+          const card = document.createElement('article');
+          card.className = 'animal-card';
+          const titulo = document.createElement('h3');
+          titulo.textContent = `Animal ${valorAnimal(postulacion, 'animalId')}`;
+          const codigo = document.createElement('p');
+          codigo.className = 'muted';
+          codigo.textContent = `Postulación ${valorAnimal(postulacion, 'postulacionId')}`;
+          const etiquetaEstado = document.createElement('span');
+          const metadataEstado = ETIQUETAS_ESTADO_POSTULACION[postulacion.estado];
+          etiquetaEstado.className = `estado-badge ${metadataEstado?.clase || 'estado-desconocido'}`;
+          etiquetaEstado.textContent = metadataEstado?.texto || 'Estado desconocido';
+          const lineaEstado = document.createElement('p');
+          lineaEstado.appendChild(etiquetaEstado);
+          const fecha = new Date(postulacion.fechaPostulacion);
+          const fechaTexto = postulacion.fechaPostulacion && !Number.isNaN(fecha.getTime())
+            ? fecha.toLocaleString('es-CL')
+            : 'No informada';
+          const fechaElemento = document.createElement('p');
+          fechaElemento.textContent = `Fecha: ${fechaTexto}`;
+          card.append(titulo, codigo, lineaEstado, fechaElemento);
+          cards.appendChild(card);
+        }
+        setStatus(estado, `${resultado.datos.total} postulación(es).`, 'ok');
+      } catch {
+        cards.replaceChildren();
+        setStatus(estado, 'No se pudieron cargar tus postulaciones.', 'err');
+      }
+    }
+
+    document.getElementById('refrescarMisPostulaciones').addEventListener(
+      'click',
+      () => cargarMisPostulaciones(1)
+    );
+    document.getElementById('anteriorMisPostulaciones').addEventListener(
+      'click',
+      () => cargarMisPostulaciones(paginaMisPostulaciones - 1)
+    );
+    document.getElementById('siguienteMisPostulaciones').addEventListener(
+      'click',
+      () => cargarMisPostulaciones(paginaMisPostulaciones + 1)
+    );
 
     async function cargarAnimales() {
       const resultado = await llamarApi('GET', '/disponibles?page=1&limit=20');
@@ -803,6 +928,7 @@
         mostrar('avisoPostular',
           `Postulación recibida. Código: ${resultado.datos.postulacionId}`, false);
         cerrarFormulario();
+        await cargarMisPostulaciones(1);
       } catch {
         mostrar('avisoPostular', 'No se pudo conectar con el servidor.', true);
       }

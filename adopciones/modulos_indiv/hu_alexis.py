@@ -255,6 +255,17 @@ def postulaciones(request):
 
     # --- HU-09: Panel de evaluación del funcionario ---
     if request.method == 'GET':
+        if perfil == 'vecino':
+            rut = request.usuario.get('rut')
+            if not rut:
+                return error(401, 'TOKEN_INVALIDO', 'La sesión no entregó un RUT válido')
+            lista = list(
+                db.postulaciones()
+                .find({'postulanteRut': rut}, {'_id': 0})
+                .sort('fechaPostulacion', -1)
+            )
+            return Response(paginar(lista, request))
+
         if perfil != 'funcionario':
             return error(403, 'PERFIL_NO_AUTORIZADO', 'Se requiere perfil: funcionario')
         animal_id = request.query_params.get('animalId')
