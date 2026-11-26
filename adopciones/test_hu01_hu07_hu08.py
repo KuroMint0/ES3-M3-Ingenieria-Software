@@ -43,7 +43,7 @@ class PostulacionApiTests(SimpleTestCase):
     def crear(self, cuerpo):
         return self.client.post('/api/adopciones/postulaciones', cuerpo, format='json')
 
-    def preparar_dependencias(self, postulacion_existente=None):
+    def preparar_dependencias(self, postulacion_existente=None, postulaciones_activas=0):
         publicaciones = Mock()
         publicaciones.find_one.return_value = {'animalId': ANIMAL_ID}
         mocks = [
@@ -62,6 +62,10 @@ class PostulacionApiTests(SimpleTestCase):
             patch(
                 'adopciones.views_postulaciones.repo.buscar_activa',
                 return_value=postulacion_existente,
+            ),
+            patch(
+                'adopciones.views_postulaciones.repo.contar_activas_por_postulante',
+                return_value=postulaciones_activas,
             ),
             patch('adopciones.views_postulaciones.repo.asegurar_indices'),
             patch(
@@ -108,6 +112,38 @@ class PostulacionApiTests(SimpleTestCase):
         self.assertEqual(documento['estado'], estados.RECIBIDA)
         self.assertTrue(documento['formulario']['consentimientoFamiliar'])
         self.assertEqual(documento['formulario']['observaciones'], 'Patio cerrado')
+
+    def test_permite_postular_con_una_postulacion_activa(self):
+        started, mocks = self.preparar_dependencias(postulaciones_activas=1)
+        for mock in mocks:
+            self.addCleanup(mock.stop)
+
+        respuesta = self.crear({
+            'animalId': ANIMAL_ID,
+            'formulario': FORMULARIO,
+        })
+
+        self.assertEqual(respuesta.status_code, 201)
+
+    def test_rechaza_tercera_postulacion_activa(self):
+        started, mocks = self.preparar_dependencias(postulaciones_activas=2)
+        for mock in mocks:
+            self.addCleanup(mock.stop)
+        animal_m1_mock = started[0]
+        crear_mock = started[-1]
+
+        respuesta = self.crear({
+            'animalId': ANIMAL_ID,
+            'formulario': FORMULARIO,
+        })
+
+        self.assertEqual(respuesta.status_code, 409)
+        self.assertEqual(
+            respuesta.data['error']['codigo'],
+            'MAXIMO_POSTULACIONES_ACTIVAS',
+        )
+        animal_m1_mock.assert_not_called()
+        crear_mock.assert_not_called()
 
     def test_rechaza_postulacion_activa_duplicada(self):
         started, mocks = self.preparar_dependencias({'postulacionId': 'P-ANTERIOR'})

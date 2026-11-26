@@ -9,11 +9,13 @@ guardada una postulación sin los datos legales (RF-04, Ley 21.719).
 from datetime import datetime, timezone
 
 from pymongo.errors import DuplicateKeyError
+from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from . import db, estados, nucleo
 from . import repositorio_postulaciones as repo
 from .respuestas import error
+from .seguridad import requiere_perfil
 from .validadores import (
     PostulacionSerializer,
     campos_no_permitidos_postulacion,
@@ -33,7 +35,7 @@ def _json(respuesta):
         return None
 
 
-def crear_postulacion(request):
+def procesar_creacion_postulacion(request):
     # --- Paso 3: validar el cuerpo ANTES de usarlo en cualquier otra cosa ------
     datos = request.data            # JSON roto -> ParseError -> 400 (manejador_excepciones)
 
@@ -51,6 +53,12 @@ def crear_postulacion(request):
     rut = request.usuario.get('rut')
     if not rut:
         return error(401, 'TOKEN_INVALIDO', 'La sesión no entregó un RUT válido')
+    if repo.contar_activas_por_postulante(rut) >= estados.MAX_POSTULACIONES_ACTIVAS:
+        return error(
+            409,
+            'MAXIMO_POSTULACIONES_ACTIVAS',
+            'Ya tienes 2 postulaciones activas. Espera a que una deje de estar activa antes de iniciar otra.',
+        )
 
     # --- Paso 4: el animal existe en el Módulo 1 (RN-01) ------------------------
     resp_animal = nucleo.obtener_animal(animal_id, request.token)
@@ -86,7 +94,6 @@ def crear_postulacion(request):
                      'La persona tiene prohibición de tenencia y no puede postular')
 
     # --- Paso 8: duplicado (1.ª capa, mensaje claro) -------------------------------
-    repo.asegurar_indices()
     if repo.buscar_activa(animal_id, rut):
         return error(409, 'POSTULACION_DUPLICADA',
                      'Ya tienes una postulación activa para este animal')
@@ -120,7 +127,7 @@ def crear_postulacion(request):
         'estado': estados.RECIBIDA,                     # estado inicial de la ficha
         'fechaPostulacion': datetime.now(timezone.utc),
         'formulario': dict(validados['formulario']),
-        'historialEvaluacion': [],
+        'historiaEvaluacion': [],
         'seguimientoPosterior': [],
     }
     try:
@@ -137,4 +144,5 @@ def crear_postulacion(request):
 @api_view(['POST'])
 @requiere_perfil('vecino')
 def crear_postulacion(request):
+    """Endpoint independiente; el dispatcher compartido llama al procesador."""
     return procesar_creacion_postulacion(request)

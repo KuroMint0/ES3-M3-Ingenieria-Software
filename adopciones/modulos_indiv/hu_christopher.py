@@ -66,6 +66,7 @@ def publicar(request):
         'especie': animal['especie'],
         'raza': animal['raza'],
         'edadAproximada': animal['edadAproximada'],
+        'tieneMicrochip': True,
         'microchip': animal['microchip'],
         'estado': modelos.ESTADO_DISPONIBLE,
         'publicadoPorRut': request.usuario['rut'],

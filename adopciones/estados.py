@@ -44,6 +44,7 @@ TRANSICIONES = {
 
 # Estados en los que la postulación "sigue viva" (cuenta para el máximo de 2, RN-11).
 ACTIVAS = [RECIBIDA, EN_EVALUACION]
+MAX_POSTULACIONES_ACTIVAS = 2
 
 # Estados de otras postulaciones que se cierran cuando se aprueba una adopción.
 CANCELABLES_POR_ADOPCION = [RECIBIDA, EN_EVALUACION, APROBADA]

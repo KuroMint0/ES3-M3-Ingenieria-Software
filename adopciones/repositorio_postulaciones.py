@@ -40,6 +40,16 @@ def buscar_activa(animal_id, rut):
     )
 
 
+def contar_activas_por_postulante(rut):
+    """Cuenta las postulaciones activas del RUT autenticado."""
+    return db.postulaciones().count_documents(
+        {
+            'postulanteRut': rut,
+            'estado': {'$in': estados.ACTIVAS},
+        }
+    )
+
+
 def crear(documento):
     """
     Inserta una postulación y la devuelve SIN el _id de Mongo.

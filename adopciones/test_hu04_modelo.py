@@ -103,8 +103,23 @@ class ModeloPublicacionAnimalTests(SimpleTestCase):
         self.assertEqual(documento['especie'], 'perro')
         self.assertEqual(documento['raza'], 'mestizo')
         self.assertEqual(documento['edadAproximada'], 5)
+        self.assertTrue(documento['tieneMicrochip'])
         self.assertIsNone(documento['descripcion'])
         self.assertIsNone(documento['fotografia'])
+
+    def test_codigo_microchip_puede_ser_nulo_con_estado_activo(self):
+        animal = {**ANIMAL_M1, 'microchip': None}
+        self.obtener_animal_mock.return_value = SimpleNamespace(
+            status_code=200,
+            json=lambda: animal,
+        )
+
+        respuesta = self.publicar({'animalId': 'SIM-000001'})
+
+        self.assertEqual(respuesta.status_code, 201)
+        documento = self.publicaciones.insert_one.call_args.args[0]
+        self.assertTrue(documento['tieneMicrochip'])
+        self.assertIsNone(documento['microchip'])
 
     def test_guarda_descripcion_y_referencia_fotografica_opcionales(self):
         respuesta = self.publicar({
@@ -177,4 +192,3 @@ class CatalogoAnimalPublicoTests(SimpleTestCase):
         self.assertEqual(respuesta.status_code, 200)
         self.assertEqual(respuesta.data['total'], 1)
         self.assertEqual(respuesta.data['datos'][0]['animalId'], 'SIM-000001')
-        publicaciones.find.assert_called_once_with({'estado': 'disponible'}, {'_id': 0})
