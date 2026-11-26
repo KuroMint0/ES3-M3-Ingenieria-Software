@@ -15,7 +15,8 @@ class Animal(TypedDict):
     edadAproximada: int | float | str
     descripcion: str | None
     fotografia: str | None
-    microchip: int | str
+    tieneMicrochip: bool
+    microchip: int | str | None
     estado: str
     publicadoPorRut: str
     fechaPublicacion: str

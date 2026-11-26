@@ -68,6 +68,11 @@ class FormularioSerializer(serializers.Serializer):
     otrosAnimales = BooleanoEstricto()
     presenciaNinos = BooleanoEstricto()
     consentimientoFamiliar = BooleanoEstricto()
+    observaciones = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=1000,
+    )
 
     def validate_consentimientoFamiliar(self, value):
         # El consentimiento debe ser true: false NO basta (Ley 21.719).

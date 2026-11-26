@@ -41,6 +41,14 @@ class ColeccionPostulacionesFake:
                 return dict(d)
         return None
 
+    def count_documents(self, filtro):
+        activos = filtro['estado']['$in']
+        return sum(
+            1 for documento in self.docs
+            if documento['postulanteRut'] == filtro['postulanteRut']
+            and documento['estado'] in activos
+        )
+
     def insert_one(self, doc):
         doc.setdefault('_id', len(self.docs) + 1)
         self.docs.append(dict(doc))

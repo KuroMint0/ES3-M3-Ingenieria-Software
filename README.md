@@ -61,12 +61,24 @@ prueba el botón **GET /api/adopciones/disponibles**.
 | Método y ruta | Perfil | Historia |
 |---|---|---|
 | `GET /api/adopciones/salud` | público | — |
-| `GET /api/adopciones/disponibles` | con token | lista de animales publicados |
+| `GET /api/adopciones/disponibles` | público | lista de animales publicados disponibles |
 | `POST /api/adopciones/publicaciones` | funcionario | HU-04/HU-13: publicar animal con microchip |
 | `POST /api/adopciones/postulaciones` | vecino | HU-01/HU-07: crear postulación |
 | `GET /api/adopciones/postulaciones/{id}/seguimientos` | funcionario, jefatura | HU-08: listar controles |
 | `POST /api/adopciones/postulaciones/{id}/seguimientos` | funcionario | HU-08: registrar control |
 | `GET /api/adopciones/postulaciones/{id}/seguimientos/{controlId}/archivo` | funcionario, jefatura | HU-08: descargar evidencia |
+
+La postulación se envía en JSON con `animalId` y el objeto `formulario`.
+`tipoVivienda`, `patioExterior`, `otrosAnimales`, `presenciaNinos` y
+`consentimientoFamiliar` son obligatorios; el consentimiento debe ser `true`.
+Las postulaciones activas duplicadas del mismo vecino al mismo animal se rechazan.
+Al aprobar una postulación, el animal pasa a `adoptado` y las demás postulaciones
+pendientes para ese animal quedan `cancelada_por_adopcion_concretada`.
+
+Los controles HU-08 se guardan en GridFS de MongoDB (no en el disco local) y
+aceptan PDF, JPG y PNG de hasta 5 MB; se valida tanto la extensión como la firma
+del contenido. Se pueden registrar controles cuando la postulación está en estado
+`adopcion_concretada`.
 
 Para dejar los datos de demostración listos para las verificaciones:
 

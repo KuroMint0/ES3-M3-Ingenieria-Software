@@ -4,7 +4,7 @@ CONVENCIÓN DE EQUIPO: cada integrante trabaja en SU archivo de módulo (modulos
 y agrega UNA sola línea aquí abajo. Este es el único archivo compartido.
 """
 from django.urls import path
-from . import views, views_postulaciones, views_seguimientos
+from . import views, views_seguimientos
 from .modulos_indiv import hu_christopher, hu_eric, hu_alexis
 
 urlpatterns = [

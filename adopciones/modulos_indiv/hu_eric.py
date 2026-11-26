@@ -119,10 +119,13 @@ def cancelar_postulacion(request, postulacion_id):
         return error(409, 'TRANSICION_INVALIDA',
                      f'No se puede cancelar una postulación en estado "{estado_actual}"')
 
-    col.update_one(
-        {'postulacionId': postulacion_id},
+    resultado = col.update_one(
+        {'postulacionId': postulacion_id, 'estado': estado_actual},
         {'$set': {'estado': estados.CANCELADA, 'fechaCancelacion': _ahora_iso()}},
     )
+    if resultado.matched_count != 1:
+        return error(409, 'TRANSICION_INVALIDA',
+                     'La postulación cambió de estado y ya no se puede cancelar')
 
     # Alerta automática al tutor afectado (el postulante).
     aviso = crear_notificacion(

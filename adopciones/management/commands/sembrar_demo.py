@@ -78,7 +78,7 @@ class Command(BaseCommand):
                     'presenciaNinos': False,
                     'consentimientoFamiliar': True,
                 },
-                'historiaEvaluacion': [],
+                'historialEvaluacion': [],
                 'seguimientoPosterior': [],
             },
             upsert=True,

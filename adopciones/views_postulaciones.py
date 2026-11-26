@@ -35,9 +35,7 @@ def _json(respuesta):
         return None
 
 
-@api_view(['POST'])
-@requiere_perfil('vecino')          # pasos 1 y 2: 401 sin token, 403 si no es vecino
-def crear_postulacion(request):
+def procesar_creacion_postulacion(request):
     # --- Paso 3: validar el cuerpo ANTES de usarlo en cualquier otra cosa ------
     datos = request.data            # JSON roto -> ParseError -> 400 (manejador_excepciones)
 
@@ -55,6 +53,12 @@ def crear_postulacion(request):
     rut = request.usuario.get('rut')
     if not rut:
         return error(401, 'TOKEN_INVALIDO', 'La sesión no entregó un RUT válido')
+    if repo.contar_activas_por_postulante(rut) >= estados.MAX_POSTULACIONES_ACTIVAS:
+        return error(
+            409,
+            'MAXIMO_POSTULACIONES_ACTIVAS',
+            'Ya tienes 2 postulaciones activas. Espera a que una deje de estar activa antes de iniciar otra.',
+        )
 
     # --- Paso 4: el animal existe en el Módulo 1 (RN-01) ------------------------
     resp_animal = nucleo.obtener_animal(animal_id, request.token)
@@ -135,3 +139,10 @@ def crear_postulacion(request):
 
     # --- Paso 10 ---------------------------------------------------------------------
     return Response(creado, status=201)
+
+
+@api_view(['POST'])
+@requiere_perfil('vecino')
+def crear_postulacion(request):
+    """Endpoint independiente; el dispatcher compartido llama al procesador."""
+    return procesar_creacion_postulacion(request)

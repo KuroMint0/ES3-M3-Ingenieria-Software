@@ -787,7 +787,10 @@
       try {
         const resultado = await llamarApi('POST', '/postulaciones', cuerpo);
         if (!resultado.ok) {
-          mostrar('avisoPostular', textoError(resultado), true);
+          const mensaje = resultado.datos.error?.codigo === 'MAXIMO_POSTULACIONES_ACTIVAS'
+            ? 'Ya tienes 2 postulaciones activas. Espera a que una deje de estar activa antes de iniciar otra.'
+            : textoError(resultado);
+          mostrar('avisoPostular', mensaje, true);
           return;
         }
         mostrar('avisoPostular',
