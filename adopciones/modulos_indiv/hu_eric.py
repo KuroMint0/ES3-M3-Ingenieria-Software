@@ -3,8 +3,12 @@
 HU-06 · Avisos/notificaciones al tutor.
 HU-11 · Al aprobar una adopción, actualizar el RUT del tutor en el M1 (con reintentos y log).
 """
+import os
 import uuid
 from datetime import datetime, timezone
+
+from django.conf import settings
+from django.http import FileResponse
 
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -157,3 +161,13 @@ def sincronizar_tutor(request):
     log = actualizar_tutor_m1(animal_id, tutor_rut, request.token)
     codigo = {'ok': 200, 'rechazado': 409}.get(log['resultado'], 502)
     return Response(log, status=codigo)
+
+
+# =====================================================================
+# HU-06 · Pantalla de la bandeja (para verla en el navegador / Render)
+# =====================================================================
+def bandeja(request):
+    """Sirve frontend/notificaciones.html. La página hace login contra el núcleo
+    y consulta /api/adopciones/notificaciones del mismo origen (sirve local y en Render)."""
+    ruta = os.path.join(settings.BASE_DIR, 'frontend', 'notificaciones.html')
+    return FileResponse(open(ruta, 'rb'))
