@@ -4,6 +4,7 @@ from typing import TypedDict
 
 
 ESTADO_DISPONIBLE = 'disponible'
+ESTADO_ADOPTADO = 'adoptado'
 
 
 class Animal(TypedDict):
