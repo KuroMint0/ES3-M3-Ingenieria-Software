@@ -100,6 +100,36 @@ class ModeloPublicacionAnimalTests(SimpleTestCase):
         self.assertEqual(documento['descripcion'], 'Animal tranquilo')
         self.assertEqual(documento['fotografia'], 'https://ejemplo.test/cholito.jpg')
 
+    def test_publicacion_aparece_inmediatamente_en_catalogo_como_disponible(self):
+        documentos = []
+        self.publicaciones.insert_one.side_effect = (
+            lambda documento: documentos.append(dict(documento))
+        )
+        self.publicaciones.find.side_effect = (
+            lambda filtro, proyeccion: [
+                documento for documento in documentos
+                if documento.get('estado') == filtro.get('estado')
+            ]
+        )
+
+        respuesta_publicar = self.publicar({'animalId': 'SIM-000001'})
+        self.client.credentials()
+        respuesta_catalogo = self.client.get(
+            '/api/adopciones/disponibles?page=1&limit=100'
+        )
+
+        self.assertEqual(respuesta_publicar.status_code, 201)
+        self.assertEqual(respuesta_catalogo.status_code, 200)
+        self.assertEqual(respuesta_catalogo.data['total'], 1)
+        self.assertEqual(
+            respuesta_catalogo.data['datos'][0]['animalId'],
+            'SIM-000001',
+        )
+        self.assertEqual(
+            respuesta_catalogo.data['datos'][0]['estado'],
+            'disponible',
+        )
+
     def test_rechaza_campos_opcionales_no_textuales(self):
         respuesta = self.publicar({
             'animalId': 'SIM-000001',

@@ -45,6 +45,7 @@
     .animal-card h3 { color: #0f5d6b; margin: 0 0 .35rem; }
     .animal-card p { margin: .35rem 0; overflow-wrap: anywhere; }
     .animal-card img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 6px; margin: .5rem 0; }
+    .animal-card .estado-disponible { color: #216b35; font-weight: 600; }
     .animal-card dl { display: grid; grid-template-columns: auto 1fr; gap: .35rem .7rem; }
     .animal-card dt { font-weight: 600; }
     .animal-card dd { margin: 0; overflow-wrap: anywhere; }
@@ -938,6 +939,12 @@
         id.className = 'muted';
         id.textContent = valorAnimal(animal, 'animalId');
         const details = document.createElement('dl');
+        if (animal.estado === 'disponible') {
+          const estado = document.createElement('p');
+          estado.className = 'estado-disponible';
+          estado.textContent = 'Disponible para adopción';
+          card.appendChild(estado);
+        }
         const fotografia = urlFotografiaSegura(animal.fotografia);
         if (fotografia) {
           const imagen = document.createElement('img');
