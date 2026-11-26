@@ -64,6 +64,7 @@ prueba el botón **GET /api/adopciones/disponibles**.
 | `GET /api/adopciones/disponibles` | público | lista de animales publicados disponibles |
 | `POST /api/adopciones/publicaciones` | funcionario | HU-04/HU-13: publicar animal con microchip |
 | `POST /api/adopciones/postulaciones` | vecino | HU-01/HU-07: crear postulación |
+| `PATCH /api/adopciones/postulaciones/{id}/estado` | funcionario | HU-14: cerrar adopción con dos controles válidos |
 | `GET /api/adopciones/postulaciones/{id}/seguimientos` | funcionario, jefatura | HU-08: listar controles |
 | `POST /api/adopciones/postulaciones/{id}/seguimientos` | funcionario | HU-08: registrar control |
 | `GET /api/adopciones/postulaciones/{id}/seguimientos/{controlId}/archivo` | funcionario, jefatura | HU-08: descargar evidencia |
@@ -78,7 +79,9 @@ pendientes para ese animal quedan `cancelada_por_adopcion_concretada`.
 Los controles HU-08 se guardan en GridFS de MongoDB (no en el disco local) y
 aceptan PDF, JPG y PNG de hasta 5 MB; se valida tanto la extensión como la firma
 del contenido. Se pueden registrar controles cuando la postulación está en estado
-`adopcion_concretada`.
+`adopcion_concretada`. Los nuevos controles quedan marcados `control_valido: true`;
+el proceso solo se puede cerrar desde `adopcion_concretada` cuando ya tiene dos
+controles válidos. El cierre actualiza el estado a `adopcion_cerrada`.
 
 Para dejar los datos de demostración listos para las verificaciones:
 

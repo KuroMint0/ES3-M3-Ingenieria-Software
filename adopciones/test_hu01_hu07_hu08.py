@@ -349,8 +349,20 @@ class SeguimientoArchivoTests(SimpleTestCase):
                 respuesta = self.subir(nombre, contenido)
                 self.assertEqual(respuesta.status_code, 201)
                 self.assertNotIn('archivoId', respuesta.data['archivo'])
+                self.assertTrue(respuesta.data['control_valido'])
 
         self.assertEqual(self.bucket.upload_from_stream.call_count, 3)
+
+    def test_lista_incluye_estado_de_postulacion(self):
+        respuesta = self.client.get(
+            f'/api/adopciones/postulaciones/{POSTULACION_ID}/seguimientos?page=1&limit=100'
+        )
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(
+            respuesta.data['estadoPostulacion'],
+            estados.ADOPCION_CONCRETADA,
+        )
 
     def test_acepta_archivo_en_el_limite_de_5_mb(self):
         contenido = b'%PDF-' + b'x' * (MAX_ARCHIVO - len(b'%PDF-'))

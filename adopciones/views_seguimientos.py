@@ -24,7 +24,7 @@ from rest_framework.decorators import api_view, parser_classes
 from rest_framework.parsers import JSONParser, MultiPartParser
 from rest_framework.response import Response
 
-from . import db, estados
+from . import db, estados, modelos
 from . import repositorio_postulaciones as repo
 from .respuestas import error, paginar
 from .seguridad import requiere_perfil, requiere_token
@@ -150,12 +150,13 @@ def _crear_seguimiento(request, postulacion_id):
         }
 
     # 11) Agregar el control a la postulación.
-    control = {
+    control: modelos.ControlSeguimiento = {
         'controlId': control_id,
         'observaciones': serializador.validated_data['observaciones'],
         'fechaControl': datetime.now(timezone.utc),     # la fija el servidor
         'registradoPor': request.usuario.get('rut'),
         'archivo': registro_archivo,
+        'control_valido': True,
     }
     try:
         agregado = repo.agregar_control(postulacion_id, control)
@@ -185,7 +186,9 @@ def _listar_seguimientos(request, postulacion_id):
         return error(404, 'POSTULACION_NO_ENCONTRADA', 'La postulación no existe')
 
     controles = [_publico(c) for c in postulacion.get('seguimientoPosterior', [])]
-    return Response(paginar(controles, request))
+    respuesta = paginar(controles, request)
+    respuesta['estadoPostulacion'] = postulacion.get('estado')
+    return Response(respuesta)
 
 
 # ---------------------------------------------------------------------------

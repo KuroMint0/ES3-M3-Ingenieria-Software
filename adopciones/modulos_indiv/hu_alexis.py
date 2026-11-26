@@ -134,6 +134,19 @@ def procesar_cambio_estado(postulacion_id, nuevo_estado, funcionario_rut, token,
             f'No se puede pasar de "{estado_actual}" a "{nuevo_estado}".',
         )
 
+    if nuevo_estado == estados.ADOPCION_CERRADA:
+        controles = postulacion.get('seguimientoPosterior') or []
+        controles_validos = sum(
+            1 for control in controles
+            if isinstance(control, dict) and control.get('control_valido') is True
+        )
+        if controles_validos < estados.MIN_CONTROLES_VALIDOS_PARA_CIERRE:
+            raise ErrorReglaNegocio(
+                409,
+                'CONTROLES_SEGUIMIENTO_INSUFICIENTES',
+                'Se requieren al menos 2 controles de seguimiento válidos para cerrar la adopción.',
+            )
+
     ahora = utc_actual()
     ahora_str = a_iso_utc(ahora)
     cambios = {'estado': nuevo_estado}
@@ -167,6 +180,9 @@ def procesar_cambio_estado(postulacion_id, nuevo_estado, funcionario_rut, token,
 
     if nuevo_estado == estados.ADOPCION_CONCRETADA:
         cambios['fechaAdopcion'] = ahora_str
+
+    if nuevo_estado == estados.ADOPCION_CERRADA:
+        cambios['fechaCierreAdopcion'] = ahora_str
 
     if nuevo_estado == estados.DEVUELTO:
         fecha_inicio = desde_iso_utc(postulacion.get('fechaAdopcion')) or desde_iso_utc(postulacion.get('fechaPostulacion'))
@@ -291,6 +307,7 @@ def cambiar_estado(request, postulacion_id):
         'aprobar': estados.APROBADA,
         'rechazar': estados.RECHAZADA,
         'concretar': estados.ADOPCION_CONCRETADA,
+        'cerrar': estados.ADOPCION_CERRADA,
         'devolver': estados.DEVUELTO,
     }
     if not nuevo_estado and datos.get('accion'):

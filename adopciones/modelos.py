@@ -1,4 +1,5 @@
 """Esquemas de documentos MongoDB; este proyecto no usa el ORM de Django."""
+from datetime import datetime
 from typing import TypedDict
 
 
@@ -20,3 +21,14 @@ class Animal(TypedDict):
     estado: str
     publicadoPorRut: str
     fechaPublicacion: str
+
+
+class ControlSeguimiento(TypedDict):
+    """Control de seguimiento posterior a una adopción."""
+
+    controlId: str
+    observaciones: str
+    fechaControl: datetime
+    registradoPor: str
+    archivo: dict | None
+    control_valido: bool

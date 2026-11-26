@@ -172,6 +172,11 @@
     </form>
     <p id="avisoSeguimiento" class="status"></p>
     <ul id="listaSeguimientos" class="seguimiento-lista"></ul>
+    <div id="cierreAdopcionPanel" hidden>
+      <p id="progresoControles" class="help">0/2 controles válidos</p>
+      <button id="btnCerrarAdopcion" type="button" disabled>Cerrar proceso de adopción</button>
+      <p id="estadoCierreAdopcion" class="status" role="status" aria-live="polite"></p>
+    </div>
   </fieldset>
 
   <!-- Panel Funcionario: Evaluación de postulaciones (HU-09) y Devoluciones (HU-10 / HU-15) -->
@@ -226,6 +231,7 @@
       'aprobada',
       'rechazada',
       'adopcion_concretada',
+      'adopcion_cerrada',
       'devuelto'
     ];
 
@@ -284,6 +290,7 @@
       postularPanel.hidden = !esVecino;
       document.getElementById('postulacionHuPanel').hidden = !esVecino;
       document.getElementById('seguimientoHuPanel').hidden = !puedeVerSeguimientos;
+      document.getElementById('cierreAdopcionPanel').hidden = !esFuncionario;
       document.getElementById('btnSalir').hidden = perfil === null;
 
       if (!esFuncionario) {
@@ -811,11 +818,18 @@
 
     async function cargarSeguimientos() {
       const id = codigoSeguimiento();
+      const botonCierre = document.getElementById('btnCerrarAdopcion');
+      const progreso = document.getElementById('progresoControles');
+      botonCierre.disabled = true;
       if (!id) {
+        progreso.textContent = '0/2 controles válidos';
         mostrar('avisoSeguimiento', 'Escribe el código de la postulación.', true);
         return;
       }
-      const resultado = await llamarApi('GET', rutaSeguimientos(id));
+      const resultado = await llamarApi(
+        'GET',
+        `${rutaSeguimientos(id)}?page=1&limit=100`
+      );
       if (!resultado.ok) {
         mostrar('avisoSeguimiento', textoError(resultado), true);
         return;
@@ -823,9 +837,23 @@
       mostrar('avisoSeguimiento', '', false);
       const lista = document.getElementById('listaSeguimientos');
       lista.replaceChildren();
-      for (const control of resultado.datos.datos || []) {
+      const controles = Array.isArray(resultado.datos.datos)
+        ? resultado.datos.datos
+        : [];
+      const controlesValidos = controles.filter(
+        (control) => control.control_valido === true
+      ).length;
+      const adopcionCerrada = resultado.datos.estadoPostulacion === 'adopcion_cerrada';
+      progreso.textContent = `${controlesValidos}/2 controles válidos`;
+      botonCierre.disabled = controlesValidos < 2 || adopcionCerrada;
+      botonCierre.textContent = adopcionCerrada
+        ? 'Proceso de adopción cerrado'
+        : 'Cerrar proceso de adopción';
+
+      for (const control of controles) {
         const item = document.createElement('li');
-        item.textContent = `${control.controlId}: ${control.observaciones}`;
+        const estadoControl = control.control_valido === true ? 'Válido' : 'No válido';
+        item.textContent = `${control.controlId}: ${control.observaciones} · ${estadoControl}`;
         if (control.archivo) {
           const boton = document.createElement('button');
           boton.type = 'button';
@@ -836,6 +864,28 @@
         lista.appendChild(item);
       }
     }
+
+    document.getElementById('btnCerrarAdopcion').addEventListener('click', async () => {
+      const id = codigoSeguimiento();
+      if (!id) {
+        mostrar('estadoCierreAdopcion', 'Escribe el código de la postulación.', true);
+        return;
+      }
+
+      const resultado = await llamarApi(
+        'PATCH',
+        `/postulaciones/${encodeURIComponent(id)}/estado`,
+        { estado: 'adopcion_cerrada' }
+      );
+      if (!resultado.ok) {
+        mostrar('estadoCierreAdopcion', textoError(resultado), true);
+        await cargarSeguimientos();
+        return;
+      }
+
+      mostrar('estadoCierreAdopcion', 'Proceso de adopción cerrado.', false);
+      await cargarSeguimientos();
+    });
 
     async function enviarSeguimiento(evento) {
       evento.preventDefault();
